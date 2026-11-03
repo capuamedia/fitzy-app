@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sign in · Fitzy Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/ops.css">
+</head>
+<body>
+<div class="ops">
+  <header class="ops-bar">
+    <span class="ops-bar__title">Fitzy Ops</span>
+  </header>
+
+  <main class="ops-main" style="max-width:420px;margin:0 auto">
+    <div class="card">
+      <h1 class="page-title" style="margin-bottom:10px">Sign in</h1>
+      <p class="help" id="msg">
+        The real sign-in — phone number and a texted code — isn't built yet.
+      </p>
+
+      <div id="devbox" hidden style="margin-top:18px">
+        <button class="btn btn--primary" id="dev">Sign in as owner (dev)</button>
+        <p class="btn-reason">Local development only. This button does nothing on a deployed site.</p>
+      </div>
+
+      <p class="btn-reason" id="err" hidden></p>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+
+// The dev button is offered only on a local host. The server enforces this
+// too — the client-side check is just to avoid showing a dead button.
+const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)
+  || location.hostname.endsWith('.localhost');
+
+if (local) $('devbox').hidden = false;
+
+$('dev').addEventListener('click', async () => {
+  const btn = $('dev');
+  const err = $('err');
+  err.hidden = true;
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  try {
+    const res = await fetch('/api/dev/login', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      err.textContent = data.error || 'Could not sign in.';
+      err.hidden = false;
+      return;
+    }
+    location.href = '/ops/';
+  } catch {
+    err.textContent = 'Could not reach the server. Is `npm run dev` running?';
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign in as owner (dev)';
+  }
+});
+</script>
+</body>
+</html>
