@@ -114,8 +114,8 @@ INSERT INTO settings (key, value, description) VALUES
    'Plan changes take effect next cycle [ASSUMED - Q10]'),
 
   -- Fuel pricing
-  ('fuel_price_mode', 'posted_daily',
-   'Rate is posted each morning and LOCKED at booking, not set at delivery [ASSUMED - Q20, STRUCTURAL]'),
+  ('fuel_price_mode', 'posted_daily_billed_on_delivery_date',
+   'Rate is posted each morning; fuel bills at the rate posted ON THE DELIVERY DATE. The booking quote is a quote, not a lock. CONFIRMED 2026-11-03'),
   ('fuel_price_post_by', '07:00',
    'Rates are expected to be posted by this time each service day'),
 

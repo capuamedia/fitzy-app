@@ -6,7 +6,11 @@
  *
  * Three rules it exists to protect:
  *
- *   1. Fuel bills at the rate LOCKED on the order at booking, never today's.
+ *   1. Fuel bills at the rate posted ON THE DELIVERY DATE, not the rate
+ *      quoted at booking. Booking runs 14 days out; freezing the quote
+ *      would hand Justin the market risk for the whole window against a
+ *      margin that is only the delivery fee. The quote is kept so the
+ *      receipt can show both when they differ.
  *   2. Each line rounds once, at the end: gallons x mills / 10 -> cents.
  *      Rounding per-gallon or mid-calculation drifts by a cent or two, and a
  *      cent of drift on an invoice is a dispute.
@@ -29,7 +33,7 @@ export async function onRequestPost({ request, env, params }) {
   try { body = await request.json(); } catch { return fail('Expected a JSON body'); }
 
   const order = await env.DB
-    .prepare('SELECT id, status, booking_total_cents FROM orders WHERE id = ?')
+    .prepare('SELECT id, status, booking_total_cents, delivery_date FROM orders WHERE id = ?')
     .bind(params.id)
     .first();
   if (!order) return fail('Order not found', 404);
@@ -37,7 +41,7 @@ export async function onRequestPost({ request, env, params }) {
 
   const { results: vehicles } = await env.DB
     .prepare(
-      `SELECT ov.id, ov.locked_price_mills, ov.fuel_grade,
+      `SELECT ov.id, ov.quoted_price_mills, ov.fuel_grade,
               v.make, v.model, v.tank_gallons
          FROM order_vehicles ov
     LEFT JOIN vehicles v ON v.id = ov.vehicle_id
@@ -45,6 +49,24 @@ export async function onRequestPost({ request, env, params }) {
     )
     .bind(params.id)
     .all();
+
+  // The billing rate comes from the delivery date, not from the order and
+  // not from today. Settling a Tuesday delivery on Wednesday still bills
+  // Tuesday's posted rate.
+  const { results: dayRates } = await env.DB
+    .prepare('SELECT fuel_grade, price_mills FROM fuel_prices WHERE effective_date = ?')
+    .bind(order.delivery_date)
+    .all();
+  const rateFor = Object.fromEntries(dayRates.map((r) => [r.fuel_grade, r.price_mills]));
+
+  const missing = [...new Set(vehicles.map((v) => v.fuel_grade))].filter((g) => !rateFor[g]);
+  if (missing.length) {
+    return fail(
+      `No ${missing.join(' or ')} price was posted for ${order.delivery_date}, ` +
+      `so this delivery cannot be billed. Post that day's rate first.`,
+      409
+    );
+  }
 
   const entries = body.gallons;
   if (!entries || typeof entries !== 'object') return fail('Expected gallons per vehicle');
@@ -74,22 +96,31 @@ export async function onRequestPost({ request, env, params }) {
       });
     }
 
-    const cents = fuelLineCents(gallons, v.locked_price_mills);
+    const billedMills = rateFor[v.fuel_grade];
+    const cents = fuelLineCents(gallons, billedMills);
     fuelTotal += cents;
     lines.push({
       order_vehicle_id: v.id,
       vehicle: `${v.make} ${v.model}`,
       grade: v.fuel_grade,
       gallons,
-      rate_mills: v.locked_price_mills,
+      quoted_mills: v.quoted_price_mills,
+      billed_mills: billedMills,
+      // Surfaced so the receipt can say "quoted $4.899, billed $4.949"
+      // rather than quietly charging a different number.
+      rate_changed: billedMills !== v.quoted_price_mills,
       line_total_cents: cents,
       line_total: centsToUsd(cents),
     });
 
     statements.push(
       env.DB
-        .prepare('UPDATE order_vehicles SET gallons = ?, line_total_cents = ? WHERE id = ?')
-        .bind(gallons, cents, v.id)
+        .prepare(
+          `UPDATE order_vehicles
+              SET gallons = ?, billed_price_mills = ?, line_total_cents = ?
+            WHERE id = ?`
+        )
+        .bind(gallons, billedMills, cents, v.id)
     );
   }
 

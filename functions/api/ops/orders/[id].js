@@ -1,10 +1,10 @@
 /**
  * GET /api/ops/orders/:id — everything needed to work one delivery.
  *
- * The per-gallon rate returned here is the one LOCKED onto the order when
- * the customer booked, never today's posted rate. If the market moved
- * between booking and delivery, the customer still pays what they were
- * shown. Reading the current rate here would silently break that promise.
+ * Returns two rates per vehicle: the one QUOTED at booking and the one
+ * posted for the DELIVERY DATE, which is what the customer is actually
+ * billed. They are the same for a same-day booking. When they differ, the
+ * screen shows both so nobody has to work out why the number moved.
  */
 
 import { json, fail, requireOwner, centsToUsd, millsToUsd } from '../../../_shared/lib.js';
@@ -41,6 +41,13 @@ export async function onRequestGet({ request, env, params }) {
     )
     .bind(params.id)
     .all();
+
+  // What this delivery actually bills at: the rate posted for its date.
+  const { results: dayRates } = await env.DB
+    .prepare('SELECT fuel_grade, price_mills FROM fuel_prices WHERE effective_date = ?')
+    .bind(order.delivery_date)
+    .all();
+  const rateFor = Object.fromEntries(dayRates.map((r) => [r.fuel_grade, r.price_mills]));
 
   const { results: photos } = await env.DB
     .prepare(
@@ -80,12 +87,24 @@ export async function onRequestGet({ request, env, params }) {
       window: `${order.window_start}–${order.window_end}`,
       is_member: Boolean(order.m_id),
     },
-    vehicles: vehicles.map((v) => ({
-      ...v,
-      rate_display: millsToUsd(v.locked_price_mills),
-      line_total: v.line_total_cents === null ? null : centsToUsd(v.line_total_cents),
-      photos: photos.filter((p) => p.order_vehicle_id === v.id),
-    })),
+    vehicles: vehicles.map((v) => {
+      // Once settled, the billed rate is a fact on the row. Before that, it
+      // is whatever is posted for the delivery date — and null if Justin
+      // has not posted that day's rate yet.
+      const billed = v.billed_price_mills ?? rateFor[v.fuel_grade] ?? null;
+      return {
+        ...v,
+        quoted_display: millsToUsd(v.quoted_price_mills),
+        billed_mills: billed,
+        billed_display: billed === null ? null : millsToUsd(billed),
+        rate_changed: billed !== null && billed !== v.quoted_price_mills,
+        line_total: v.line_total_cents === null ? null : centsToUsd(v.line_total_cents),
+        photos: photos.filter((p) => p.order_vehicle_id === v.id),
+      };
+    }),
+    // Null means no rate is posted for the delivery date, so nothing here
+    // can be billed yet.
+    delivery_date_rates: Object.keys(rateFor).length ? rateFor : null,
     photos,
     visits,
     next_actions: nextActions(order.status),

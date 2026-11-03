@@ -128,17 +128,36 @@ function renderStatus(data) {
 function renderFillUp(data) {
   const c = card('Record the fill-up');
   const hint = el('p', 'ops-field__hint',
-    'Gallons actually pumped, per vehicle. Each is billed at the rate locked when this order was booked — not at today’s price.');
+    `Gallons actually pumped, per vehicle. Billed at the rate posted for ${data.order.delivery_date}, the delivery day.`);
   hint.style.margin = '6px 0 4px';
   c.append(hint);
+
+  if (!data.delivery_date_rates) {
+    const stop = el('div', 'warn warn--sm');
+    stop.style.margin = '8px 0';
+    stop.textContent =
+      `No fuel price was posted for ${data.order.delivery_date}, so this delivery can't be billed yet. Post that day's rate first.`;
+    c.append(stop);
+  }
 
   const form = el('div', 'ops-form');
 
   for (const v of data.vehicles) {
     const f = el('div', 'ops-field');
     const name = [v.year, v.make, v.model].filter(Boolean).join(' ');
-    f.append(el('label', 'ops-field__label',
-      `${name} · ${v.fuel_grade === 'diesel' ? 'Diesel' : v.fuel_grade} @ ${v.rate_display}/gal`));
+    const grade = v.fuel_grade === 'diesel' ? 'Diesel' : v.fuel_grade;
+    const rate = v.billed_display ?? v.quoted_display;
+    f.append(el('label', 'ops-field__label', `${name} · ${grade} @ ${rate}/gal`));
+
+    // When the market moved between booking and delivery, say so here
+    // rather than letting the total come out different with no explanation.
+    if (v.rate_changed) {
+      const moved = el('span', 'ops-field__hint');
+      moved.style.color = 'var(--amber-ink)';
+      moved.textContent =
+        `Quoted ${v.quoted_display} at booking, billing ${v.billed_display} for the delivery day.`;
+      f.append(moved);
+    }
 
     const money = el('div', 'ops-money');
     const input = el('input');
@@ -158,7 +177,7 @@ function renderFillUp(data) {
     const recompute = () => {
       const g = parseFloat(input.value);
       line.textContent = Number.isFinite(g) && g > 0
-        ? `${g} gal × ${v.rate_display} = ${usd(Math.round((g * v.locked_price_mills) / 10))}`
+        ? `${g} gal × ${rate} = ${usd(Math.round((g * v.billed_mills ?? v.quoted_price_mills) / 10))}`
         : (v.tank_gallons ? `Tank holds about ${v.tank_gallons} gal` : '');
       total();
     };
@@ -216,7 +235,7 @@ function total() {
   for (const v of state.vehicles) {
     const input = document.querySelector(`input[data-ov="${v.id}"]`);
     const g = parseFloat(input?.value);
-    if (Number.isFinite(g) && g > 0) { t += Math.round((g * v.locked_price_mills) / 10); any = true; }
+    if (Number.isFinite(g) && g > 0) { t += Math.round((g * v.billed_mills ?? v.quoted_price_mills) / 10); any = true; }
   }
   sum.textContent = any ? usd(t) : '—';
 }
@@ -232,7 +251,7 @@ function renderSettled(data) {
     const r = el('tr');
     r.append(el('td', null, [v.year, v.make, v.model].filter(Boolean).join(' ')));
     r.append(el('td', 'num', v.gallons ?? '—'));
-    r.append(el('td', 'num', v.rate_display));
+    r.append(el('td', 'num', v.billed_display ?? v.quoted_display));
     r.append(el('td', 'num', v.line_total ?? '—'));
     t.append(r);
   }

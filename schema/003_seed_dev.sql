@@ -56,7 +56,7 @@ VALUES ('dev-o1', 'FZ-10428', 'dev-cust', 'dev-l1', 2, 'dev-m1',
         'Blue Pilot in the second driveway spot',
         0, 800, 800);
 
-INSERT INTO order_vehicles (order_id, vehicle_id, vehicle_snapshot, fuel_grade, locked_price_mills) VALUES
+INSERT INTO order_vehicles (order_id, vehicle_id, vehicle_snapshot, fuel_grade, quoted_price_mills) VALUES
   ('dev-o1', 'dev-v1', '{"year":2021,"make":"Honda","model":"Pilot","color":"Blue","plate":"8ABC123"}', '87',     4899),
   ('dev-o1', 'dev-v2', '{"year":2019,"make":"Ford","model":"F-150","color":"White","plate":"9XYZ456"}', 'diesel', 5149);
 
@@ -69,7 +69,7 @@ VALUES ('dev-o2', 'FZ-10427', 'dev-cust', 'dev-l1', 2,
         'delivered', date('now'), '06:30', '10:30',
         '1420 Lynn Rd, Thousand Oaks, CA 91360', 2499, 500, 2999, datetime('now'));
 
-INSERT INTO order_vehicles (order_id, vehicle_id, vehicle_snapshot, fuel_grade, locked_price_mills)
+INSERT INTO order_vehicles (order_id, vehicle_id, vehicle_snapshot, fuel_grade, quoted_price_mills)
 VALUES ('dev-o2', 'dev-v1', '{"year":2021,"make":"Honda","model":"Pilot"}', '87', 4899);
 
 INSERT INTO orders (id, invoice_number, user_id, location_id, zone_id,
@@ -81,6 +81,6 @@ VALUES ('dev-o3', 'FZ-10429', 'dev-cust', 'dev-l1', 2,
         '1420 Lynn Rd, Thousand Oaks, CA 91360', '4417',
         2499, 1000, 1000, 4499);
 
-INSERT INTO order_vehicles (order_id, vehicle_id, vehicle_snapshot, fuel_grade, locked_price_mills, is_extra_vehicle) VALUES
+INSERT INTO order_vehicles (order_id, vehicle_id, vehicle_snapshot, fuel_grade, quoted_price_mills, is_extra_vehicle) VALUES
   ('dev-o3', 'dev-v1', '{"year":2021,"make":"Honda","model":"Pilot"}',  '87',     4899, 0),
   ('dev-o3', 'dev-v2', '{"year":2019,"make":"Ford","model":"F-150"}',   'diesel', 5149, 0);

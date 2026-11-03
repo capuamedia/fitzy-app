@@ -179,9 +179,17 @@ CREATE INDEX idx_membership_user ON memberships(user_id, status);
 
 -- ===========================================================================
 -- FUEL PRICING
--- Justin posts a rate per grade each morning. The rate in force when the
--- customer books is LOCKED onto the order — fuel bills after delivery on
--- actual gallons, but at the rate the customer was shown.
+-- Justin posts a rate per grade each morning. Fuel bills on actual gallons
+-- at the rate posted ON THE DELIVERY DATE — not the rate quoted at booking.
+--
+-- Booking runs up to 14 days out and gas moves thirty cents in a week, so a
+-- rate frozen at booking would put the market on Justin's side of the deal
+-- for the whole window, against a margin that is only the delivery fee.
+--
+-- A customer booking for today is quoted and billed the same rate, because
+-- it is the same day. A customer booking ahead is told plainly that fuel
+-- bills at their delivery day's rate. The quoted rate is kept on the order
+-- so a receipt can show both when they differ.
 -- ===========================================================================
 
 CREATE TABLE fuel_prices (
@@ -260,8 +268,12 @@ CREATE TABLE order_vehicles (
   vehicle_id         TEXT NOT NULL REFERENCES vehicles(id),
   vehicle_snapshot   TEXT NOT NULL,   -- JSON: year/make/model/color/plate at booking
   fuel_grade         TEXT NOT NULL CHECK (fuel_grade IN ('87','91','diesel')),
-  -- The rate shown to the customer at booking, locked. Not looked up later.
-  locked_price_mills INTEGER NOT NULL,
+  -- The rate SHOWN to the customer at booking. A record of what they were
+  -- told, not what they are charged.
+  quoted_price_mills INTEGER NOT NULL,
+  -- The rate actually BILLED: the one posted on the delivery date. Written
+  -- when ops settles the delivery. Equal to the quote for a same-day booking.
+  billed_price_mills INTEGER,
   gallons            REAL,            -- filled in by ops at delivery
   line_total_cents   INTEGER,
   is_extra_vehicle   INTEGER NOT NULL DEFAULT 0,  -- triggered the +$10
