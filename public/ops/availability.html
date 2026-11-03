@@ -45,6 +45,7 @@
     <a href="/ops/">Queue</a>
     <a href="/ops/pricing.html">Prices</a>
     <a href="/ops/availability.html" class="is-active">Availability</a>
+    <button class="textlink" id="signout" style="margin-left:auto">Sign out</button>
   </nav>
 
   <main class="ops-main">
@@ -304,6 +305,11 @@ async function load() {
 
 for (const id of ['len', 'slots']) $(id).addEventListener('input', renderDays);
 load();
+
+document.getElementById('signout')?.addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  location.href = '/ops/login.html';
+});
 </script>
 </body>
 </html>

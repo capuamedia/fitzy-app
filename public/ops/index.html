@@ -22,6 +22,7 @@
     <a href="/ops/" class="is-active">Queue</a>
     <a href="/ops/pricing.html">Prices</a>
     <a href="/ops/availability.html">Availability</a>
+    <button class="textlink" id="signout" style="margin-left:auto">Sign out</button>
   </nav>
 
   <main class="ops-main">
@@ -193,6 +194,11 @@ async function load() {
 load();
 // The queue is a live run sheet; refresh while it sits open on the truck.
 setInterval(load, 60000);
+
+document.getElementById('signout')?.addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  location.href = '/ops/login.html';
+});
 </script>
 </body>
 </html>

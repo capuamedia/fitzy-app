@@ -22,6 +22,7 @@
     <a href="/ops/">Queue</a>
     <a href="/ops/pricing.html" class="is-active">Prices</a>
     <a href="/ops/availability.html">Availability</a>
+    <button class="textlink" id="signout" style="margin-left:auto">Sign out</button>
   </nav>
 
   <main class="ops-main">
@@ -202,6 +203,11 @@ $('form').addEventListener('submit', async (e) => {
 });
 
 load();
+
+document.getElementById('signout')?.addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  location.href = '/ops/login.html';
+});
 </script>
 </body>
 </html>
