@@ -1,0 +1,572 @@
+/* ==========================================================================
+   Fitzy Mobile Fueling — design system
+   --------------------------------------------------------------------------
+   Extracted from the shipped Claude Design output (Batches 2 and 3), not
+   from the written brief. Where the brief and the designs disagreed, the
+   designs won — several values here differ from the preamble.
+
+   Load this before any page stylesheet. Every screen uses these tokens.
+   ========================================================================== */
+
+:root {
+  /* --- Navy. Three shades, each with a job. ---------------------------- */
+  --navy:        #0C1626;   /* chrome: header, footer, dock, nav           */
+  --navy-ink:    #14243D;   /* page titles, primary-button label, big nums */
+  --navy-soft:   #1B2739;   /* secondary button, toast                     */
+
+  /* --- Amber. A fill colour and a text colour; they are not the same. --- */
+  --amber:       #E8A020;   /* fills: CTAs, selection, active chips        */
+  --amber-ink:   #8F5E0A;   /* amber AS TEXT on light (5.6:1). Never E8A020 */
+  --amber-pale:  #FDF3DF;   /* warning card, selected row                  */
+  --amber-chip:  #FCEFD6;   /* amber chip background                       */
+  --amber-sel:   #FFF9EC;   /* selected vehicle card                       */
+  --amber-dash:  #D9B56A;   /* pending/placeholder dashed border           */
+
+  /* --- Surfaces -------------------------------------------------------- */
+  --bg:          #F5F3EE;   /* page background (Road Dust)                 */
+  --white:       #FFFFFF;
+  --later:       #EAEEF4;   /* "billed after delivery" cool surface        */
+  --chip-bg:     #EDEBE6;
+  --divider:     #EEECE7;   /* inside a card                               */
+  --border:      #DDDDDD;   /* input and card borders                      */
+  --ring:        #C9C6BF;   /* unselected radio/check ring                 */
+
+  /* --- Text ------------------------------------------------------------ */
+  --text:        #2C2C2A;   /* Asphalt                                     */
+  --text-muted:  #6B6B66;
+  --text-dim:    rgba(44, 44, 42, 0.70);
+  --chip-text:   #4F4E49;
+  --link:        #2A4A7A;
+
+  /* --- On navy --------------------------------------------------------- */
+  --on-navy:         #FFFFFF;
+  --on-navy-label:   #A9BCD6;   /* dock labels, inactive nav tabs          */
+  --on-navy-sub:     #CBD6E6;   /* dock subtext                            */
+  --on-navy-muted:   #6F7F96;   /* muted dock amount                       */
+
+  /* --- Status ---------------------------------------------------------- */
+  --red:         #C0311D;   /* errors and destructive only                 */
+  --green-bg:    #E6F2E8;
+  --green-ink:   #22703A;
+
+  /* --- Shape ----------------------------------------------------------- */
+  --r-card:      16px;
+  --r-pill:      999px;
+  --r-input:     28px;
+  --shadow-card: 0 2px 10px rgba(20, 36, 61, 0.07);
+  --shadow-lift: 0 8px 40px rgba(10, 22, 38, 0.12);
+  --shadow-cta:  0 6px 20px rgba(232, 160, 32, 0.38);
+
+  /* The diagonal stripe on every navy surface. One value, used four times. */
+  --stripe: repeating-linear-gradient(
+              -55deg,
+              rgba(93, 130, 190, 0.09) 0 26px,
+              transparent 26px 62px);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Barlow', system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--link); }
+a:hover { color: var(--amber); }
+
+/* ==========================================================================
+   CHROME — header, footer band, bottom nav
+   Dark chrome, light content. The app is used in a driveway at noon; an
+   all-dark screen is unreadable in direct sun.
+   ========================================================================== */
+
+.hdr {
+  position: relative;
+  background: var(--navy);
+  background-image: var(--stripe);
+  border-bottom: 4px solid var(--amber);
+  padding: 62px 24px 18px;
+  z-index: 3;
+}
+.hdr__logo {
+  display: block;
+  margin: 0 auto;
+  height: 68px;
+  filter: drop-shadow(0 3px 7px rgba(0, 0, 0, 0.5));
+}
+.hdr__back {
+  position: absolute;
+  left: 20px;
+  top: 62px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.13);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hdr__back--right { left: auto; right: 20px; }
+
+.band {
+  background: var(--navy);
+  background-image: var(--stripe);
+  border-top: 2px solid var(--amber);
+  height: 68px;
+}
+
+.nav {
+  background: var(--navy);
+  background-image: var(--stripe);
+  border-top: 2px solid var(--amber);
+  height: 84px;
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 30px 0;
+}
+.nav__tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 70px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--on-navy-label);
+}
+.nav__tab.is-active { color: var(--amber); }
+
+/* ==========================================================================
+   TYPE
+   ========================================================================== */
+
+.page-title {
+  font: 800 26px 'Barlow Condensed', 'Barlow', sans-serif;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--navy-ink);
+  line-height: 1.1;
+}
+.page-sub { font-size: 14.5px; color: var(--text-dim); margin-top: 4px; }
+
+.greet { font-weight: 700; font-size: 22px; color: var(--navy-ink); }
+
+.label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.label--ink { color: var(--navy-ink); }
+
+.help { font-size: 12.5px; line-height: 1.45; color: var(--text-muted); }
+.error-text { font-size: 13px; line-height: 1.4; color: var(--red); }
+
+/* Any number a customer compares or verifies. Prices, gallons, totals. */
+.num { font-variant-numeric: tabular-nums; }
+
+/* ==========================================================================
+   BUTTONS
+   A disabled button is never inert — tapping it reveals what is missing.
+   Pair every .is-disabled CTA with a .btn-reason line beneath it.
+   ========================================================================== */
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 54px;
+  border: 0;
+  border-radius: var(--r-pill);
+  font: 700 14px 'Barlow', sans-serif;
+  letter-spacing: 2.2px;
+  text-transform: uppercase;
+  flex: none;
+  cursor: pointer;
+}
+.btn--primary {
+  background: var(--amber);
+  color: var(--navy-ink);
+  box-shadow: var(--shadow-cta);
+}
+.btn--secondary { background: var(--navy-soft); color: var(--on-navy); }
+.btn--danger    { background: var(--red);       color: var(--on-navy); }
+
+.btn.is-disabled { opacity: 0.4; box-shadow: none; }
+.dock .btn.is-disabled { opacity: 0.38; }
+
+.btn-reason {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+/* A text link styled as an action. Amber Ink, never Hi-Vis Amber. */
+.textlink {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--amber-ink);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   CARDS
+   ========================================================================== */
+
+.card {
+  background: var(--white);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  padding: 18px;
+}
+.card--flush { padding: 0; overflow: hidden; }
+.card__row {
+  padding: 14px 18px;
+  border-top: 1px solid var(--divider);
+}
+.card__row:first-child { border-top: 0; }
+.card__row.is-selected { background: var(--amber-sel); }
+
+/* The fuel-door notice and every policy callout. Note the asymmetric
+   radius — square on the ruled edge, rounded on the other three. */
+.warn {
+  background: var(--amber-pale);
+  border-left: 5px solid var(--amber);
+  border-radius: 4px var(--r-card) var(--r-card) 4px;
+  padding: 16px 18px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.warn--sm { padding: 12px 16px; font-weight: 600; }
+.warn__title { display: block; font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+
+/* ==========================================================================
+   FORM CONTROLS
+   Active and error states thicken the border, so the padding compensates to
+   keep the text from shifting. That one pixel matters on a 54px control.
+   ========================================================================== */
+
+.input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 54px;
+  padding: 0 20px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--r-input);
+  font: 400 15px 'Barlow', sans-serif;
+  color: var(--text);
+}
+.input::placeholder { color: #AAA; }
+.input:focus, .input.is-active { outline: 0; border: 2px solid var(--amber); padding: 0 19px; }
+.input.is-error { border: 1.5px solid var(--red); padding: 0 19.5px; }
+.input--area {
+  height: auto;
+  min-height: 96px;
+  border-radius: var(--r-card);
+  align-items: flex-start;
+  padding: 15px 20px;
+  line-height: 1.45;
+}
+.field-label { font-size: 13.5px; font-weight: 600; padding: 0 0 7px 18px; }
+
+.checkbox {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--amber);
+  border-radius: 4px;
+  background: var(--white);
+}
+.checkbox.is-checked {
+  background: var(--amber)
+    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M5 12.5l4.5 4.5L19 7' stroke='white' stroke-width='3.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>")
+    center / 72% no-repeat;
+}
+.checkbox.is-error { border-color: var(--red); }
+
+.radio {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--ring);
+  background: var(--white);
+}
+.radio.is-on {
+  border-color: var(--amber);
+  background: radial-gradient(circle, var(--amber) 0 5.5px, var(--white) 6px);
+}
+
+/* Selectable row — fuel grade, plan, delivery window. */
+.select-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 56px;
+  padding: 0 20px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--r-input);
+}
+.select-row--tall { height: 68px; border-radius: 34px; }
+.select-row.is-on { background: var(--amber-pale); border-color: var(--amber); }
+.select-row.is-off { background: #EFEDE8; border-color: #E4E1DA; }
+.select-row.is-off .select-row__title, .select-row.is-off .radio { opacity: 0.45; }
+
+/* ==========================================================================
+   CHIPS
+   Amber fill is reserved for EN ROUTE — the one state where the customer
+   needs to act. Spending it anywhere else devalues it.
+   ========================================================================== */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: var(--r-pill);
+  font-size: 12.5px;
+  font-weight: 600;
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  white-space: nowrap;
+}
+.chip--amber   { background: var(--amber-chip); color: var(--amber-ink); }
+.chip--default { background: var(--amber); color: var(--navy); font-size: 11px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; }
+
+.chip--status {
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  box-shadow: none;
+}
+.chip--scheduled { background: var(--chip-bg);    color: var(--chip-text); }
+.chip--confirmed { background: var(--amber-chip); color: var(--amber-ink); }
+.chip--enroute   { background: var(--amber);      color: var(--navy); }
+.chip--delivered { background: var(--navy);       color: var(--on-navy); }
+.chip--cancelled { background: transparent; color: var(--text-muted); box-shadow: inset 0 0 0 1px var(--ring); }
+
+/* An inline fee that appeared because of a choice the customer just made. */
+.fee-pill {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--amber-ink);
+  background: var(--amber-chip);
+  border-radius: var(--r-pill);
+  padding: 4px 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Today's rate, locked at booking and honoured at delivery. */
+.rate-locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--amber);
+  color: var(--navy);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+  border-radius: var(--r-pill);
+  padding: 4px 9px 4px 8px;
+}
+
+/* A value that cannot be changed yet because a rule is still unsettled. */
+.pending {
+  display: block;
+  margin-top: 6px;
+  border: 1.5px dashed var(--amber-dash);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--amber-ink);
+  font-size: 13px;
+}
+
+/* ==========================================================================
+   THE DOCK — running total, pinned to the bottom of every booking step
+   Reads as chrome above light content. It updates live as choices add cost,
+   which is what makes the flow honest: no fee is discovered at Review.
+   ========================================================================== */
+
+.dock {
+  position: sticky;
+  bottom: 0;
+  background: var(--navy);
+  background-image: var(--stripe);
+  border-top: 2px solid var(--amber);
+  padding: 14px 20px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 5;
+}
+.dock__row { display: flex; align-items: center; gap: 12px; }
+.dock__left { flex: 1; min-width: 0; }
+.dock__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--on-navy-label);
+}
+.dock__sub {
+  font-size: 12.5px;
+  color: var(--on-navy-sub);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dock__right { display: flex; align-items: center; gap: 10px; position: relative; }
+.dock__amount {
+  font-weight: 700;
+  font-size: 28px;
+  color: var(--on-navy);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+}
+.dock__amount.is-muted { color: var(--on-navy-muted); }
+.dock__chevron {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.13);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Pops above the amount when a choice adds cost, holds ~1.5s, fades. */
+.dock__delta {
+  position: absolute;
+  right: 38px;
+  top: -26px;
+  background: var(--amber);
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* ==========================================================================
+   THE CHARGE SPLIT
+   The central mechanic of the business model: money moves twice. The upper
+   block is charged now; the lower block bills after delivery on actual
+   gallons. The lower block shows RATES ONLY, never an amount — a second
+   total would be mistaken for the first.
+   ========================================================================== */
+
+.charges {
+  background: var(--white);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.charges__now   { padding: 16px 18px 14px; }
+.charges__later { background: var(--later); border-top: 1px solid var(--border); padding: 16px 18px; }
+.charges__head  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+
+.charge-tag { font-size: 11.5px; font-weight: 700; border-radius: var(--r-pill); padding: 3px 9px; }
+.charge-tag--now   { background: var(--amber); color: var(--navy); }
+.charge-tag--later { background: var(--white); color: var(--navy-ink); border: 1px solid #C9D2DF; }
+
+.line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14.5px;
+  padding: 7px 0;
+  font-variant-numeric: tabular-nums;
+}
+.line > span:last-child { white-space: nowrap; }
+.line--muted > span:last-child { color: var(--text-muted); }
+.line--total { font-weight: 700; border-top: 1px solid var(--border); margin-top: 4px; padding-top: 11px; }
+.line--big   { font-size: 20px; color: var(--navy-ink); }
+.line--rate  { font-size: 14px; padding: 4px 0; }
+.line--rate > span:first-child { color: #55544F; }
+
+/* ==========================================================================
+   PROGRESS — the five-step booking wizard
+   ========================================================================== */
+
+.progress { display: flex; flex-direction: column; gap: 7px; }
+.progress__bars { display: flex; gap: 5px; }
+.progress__bars i { flex: 1; height: 4px; border-radius: 2px; background: #DDDAD2; }
+.progress__bars i.is-done { background: var(--amber); }
+.progress__label { font-size: 12.5px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.2px; }
+
+/* Visits used this cycle. Discrete pips, never a percentage — a membership
+   is counted in visits, and a progress bar implies a continuous quantity. */
+.pips { display: flex; gap: 4px; }
+.pips i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--amber); }
+.pips i.is-used { background: var(--amber); }
+
+/* ==========================================================================
+   FEEDBACK — empty states, toasts, spinner, skeletons
+   ========================================================================== */
+
+.empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 40px; }
+.empty__title { font-weight: 700; font-size: 20px; margin-top: 18px; }
+.empty__body  { font-size: 14.5px; line-height: 1.5; color: var(--text-dim); max-width: 290px; margin-top: 8px; text-wrap: pretty; }
+
+.toast {
+  background: var(--navy-soft);
+  color: var(--on-navy);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  font-size: 14.5px;
+  font-weight: 500;
+  box-shadow: 0 10px 28px rgba(12, 22, 38, 0.3);
+}
+.toast--fail { border-left: 5px solid var(--red); }
+
+.spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(12, 22, 38, 0.22);
+  border-top-color: var(--navy);
+  animation: fitzy-rot 0.8s linear infinite;
+}
+@keyframes fitzy-rot { to { transform: rotate(360deg); } }
+
+.skeleton {
+  display: block;
+  border-radius: 6px;
+  background: #E8E8E6 linear-gradient(90deg, #E8E8E6 0, #F2F2F0 40%, #E8E8E6 80%);
+  background-size: 300% 100%;
+  animation: fitzy-shim 1.4s linear infinite;
+}
+@keyframes fitzy-shim { from { background-position: 100% 0; } to { background-position: -200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton, .spinner, .dock__delta { animation: none; }
+}
+
+/* ==========================================================================
+   LAYOUT
+   ========================================================================== */
+
+.screen { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); }
+.screen__body { flex: 1; padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; }
+.screen__body--booking { padding-bottom: 24px; }
