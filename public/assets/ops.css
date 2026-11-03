@@ -1,0 +1,228 @@
+/* ==========================================================================
+   Fitzy — ops dashboard
+   --------------------------------------------------------------------------
+   Justin's surface. Deliberately utilitarian: function over polish.
+
+   Two things shape every decision here. It is used one-handed, outdoors,
+   standing next to a truck — so targets are large and contrast is high.
+   And it is used while something is in progress — so the screen always
+   says what to do next rather than only what is true.
+
+   Inherits every token from fitzy.css. Add nothing here that belongs there.
+   ========================================================================== */
+
+.ops {
+  min-height: 100dvh;
+  background: var(--bg);
+  padding-bottom: 40px;
+}
+
+/* --- top bar -------------------------------------------------------------- */
+
+.ops-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--navy);
+  background-image: var(--stripe);
+  border-bottom: 4px solid var(--amber);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.ops-bar__title {
+  font: 800 20px 'Barlow Condensed', 'Barlow', sans-serif;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--on-navy);
+}
+.ops-bar__date { font-size: 13px; color: var(--on-navy-sub); margin-left: auto; }
+
+.ops-nav { display: flex; gap: 6px; padding: 12px 18px 0; flex-wrap: wrap; }
+.ops-nav a {
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.ops-nav a.is-active { background: var(--navy); color: var(--on-navy); }
+
+.ops-main { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+
+/* --- the alert strip ------------------------------------------------------
+   Appears only when something needs Justin's attention right now: no rates
+   posted, or a delivered order with no gallons recorded. Silent otherwise.
+   An always-present banner gets ignored within a week.
+   -------------------------------------------------------------------------- */
+
+.ops-alert {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: var(--amber-pale);
+  border-left: 5px solid var(--amber);
+  border-radius: 4px var(--r-card) var(--r-card) 4px;
+  padding: 14px 16px;
+}
+.ops-alert--stop { background: #FBEBEB; border-left-color: var(--red); }
+.ops-alert__title { font-weight: 700; font-size: 15px; }
+.ops-alert__body { font-size: 13.5px; line-height: 1.5; color: var(--text-dim); margin-top: 2px; }
+
+/* --- counts --------------------------------------------------------------- */
+
+.ops-counts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.ops-count {
+  background: var(--white);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+  padding: 12px 10px;
+  text-align: center;
+}
+.ops-count__n {
+  font-weight: 700;
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+  color: var(--navy-ink);
+  line-height: 1;
+}
+.ops-count__n.is-zero { color: #BDBAB2; }
+.ops-count__k {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+/* --- the run sheet --------------------------------------------------------- */
+
+.ops-group { display: flex; flex-direction: column; gap: 8px; }
+.ops-group__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 4px 2px;
+}
+
+.ops-order {
+  display: block;
+  background: var(--white);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  padding: 14px 16px;
+  text-decoration: none;
+  color: inherit;
+  border-left: 5px solid transparent;
+}
+.ops-order--scheduled { border-left-color: var(--ring); }
+.ops-order--confirmed { border-left-color: var(--amber-dash); }
+.ops-order--enroute   { border-left-color: var(--amber); }
+.ops-order--delivered { border-left-color: var(--navy); }
+.ops-order--problem   { border-left-color: var(--red); }
+
+.ops-order__top { display: flex; align-items: center; gap: 10px; }
+.ops-order__window {
+  font-weight: 700;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  color: var(--navy-ink);
+}
+.ops-order__who { font-weight: 600; font-size: 15.5px; margin-top: 6px; }
+.ops-order__where {
+  font-size: 13.5px;
+  color: var(--text-dim);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.ops-order__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+/* Gate code is hidden until tapped. It is a key to someone's property and
+   this screen gets left open on a truck seat. */
+.ops-secret {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--amber-ink);
+  background: var(--amber-chip);
+  border: 0;
+  border-radius: var(--r-pill);
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* --- forms ---------------------------------------------------------------- */
+
+.ops-form { display: flex; flex-direction: column; gap: 16px; }
+.ops-field { display: flex; flex-direction: column; gap: 6px; }
+.ops-field__label { font-size: 13.5px; font-weight: 600; }
+.ops-field__hint { font-size: 12.5px; color: var(--text-muted); }
+
+/* Money inputs are big, numeric, and left-marked with the unit so there is
+   no ambiguity about whether a number is dollars or cents. */
+.ops-money { display: flex; align-items: center; gap: 10px; }
+.ops-money__unit {
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--text-muted);
+  width: 22px;
+  text-align: right;
+}
+.ops-money input {
+  flex: 1;
+  height: 58px;
+  padding: 0 18px;
+  font: 700 22px 'Barlow', sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: var(--navy-ink);
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--r-input);
+}
+.ops-money input:focus { outline: 0; border: 2px solid var(--amber); padding: 0 17px; }
+.ops-money input.is-error { border: 1.5px solid var(--red); }
+.ops-money__per { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+
+.ops-prev { font-size: 12.5px; color: var(--text-muted); }
+
+.ops-saved {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--green-ink);
+  background: var(--green-bg);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.ops-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ops-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 8px 10px;
+}
+.ops-table td { padding: 10px; border-top: 1px solid var(--divider); }
+.ops-table td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.ops-empty { text-align: center; padding: 36px 20px; color: var(--text-muted); font-size: 14.5px; }

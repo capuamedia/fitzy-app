@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Queue · Fitzy Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/ops.css">
+</head>
+<body>
+<div class="ops">
+
+  <header class="ops-bar">
+    <span class="ops-bar__title">Today's queue</span>
+    <span class="ops-bar__date" id="today">—</span>
+  </header>
+
+  <nav class="ops-nav">
+    <a href="/ops/" class="is-active">Queue</a>
+    <a href="/ops/pricing.html">Prices</a>
+    <a href="/ops/availability.html">Availability</a>
+  </nav>
+
+  <main class="ops-main">
+    <div id="alerts"></div>
+    <div class="ops-counts" id="counts"></div>
+    <div id="groups"></div>
+  </main>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+
+const STATUS = {
+  en_route:  { label: 'On the way now', cls: 'enroute',   chip: 'chip--enroute' },
+  confirmed: { label: 'Confirmed',      cls: 'confirmed', chip: 'chip--confirmed' },
+  scheduled: { label: 'Not yet confirmed', cls: 'scheduled', chip: 'chip--scheduled' },
+  delivered: { label: 'Delivered',      cls: 'delivered', chip: 'chip--delivered' },
+  no_access: { label: 'Could not access', cls: 'problem', chip: 'chip--cancelled' },
+  cancelled: { label: 'Cancelled',      cls: 'delivered', chip: 'chip--cancelled' },
+};
+
+// The order the run sheet reads in: what is moving, what is next, what is
+// done. Not alphabetical, not by database order.
+const ORDER = ['en_route', 'confirmed', 'scheduled', 'delivered', 'no_access', 'cancelled'];
+
+const fmtDate = (iso) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US',
+    { weekday: 'long', month: 'long', day: 'numeric' });
+};
+
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+};
+
+function alertBox(kind, title, body) {
+  const box = el('div', 'ops-alert' + (kind === 'stop' ? ' ops-alert--stop' : ''));
+  const wrap = el('div');
+  wrap.append(el('div', 'ops-alert__title', title));
+  wrap.append(el('div', 'ops-alert__body', body));
+  box.append(wrap);
+  return box;
+}
+
+function orderCard(o) {
+  const meta = STATUS[o.status] || STATUS.scheduled;
+  const problem = o.needs_gallons || o.needs_photos;
+  const card = el('a', `ops-order ops-order--${problem ? 'problem' : meta.cls}`);
+  card.href = `/ops/order.html?id=${encodeURIComponent(o.id)}`;
+
+  const top = el('div', 'ops-order__top');
+  top.append(el('span', 'ops-order__window', o.window));
+  top.append(el('span', `chip chip--status ${meta.chip}`, meta.label));
+  card.append(top);
+
+  card.append(el('div', 'ops-order__who', `${o.first_name} ${o.last_name}`));
+  card.append(el('div', 'ops-order__where', o.address_snapshot));
+
+  const bits = el('div', 'ops-order__meta');
+  bits.append(el('span', 'chip', `${o.vehicle_count} vehicle${o.vehicle_count === 1 ? '' : 's'}`));
+  if (o.motorhome_count > 0) bits.append(el('span', 'chip chip--amber', 'Motorhome'));
+  if (o.is_member) bits.append(el('span', 'chip chip--amber', 'Member'));
+  bits.append(el('span', 'chip', o.zone_name));
+
+  // Gate codes stay hidden until tapped — this screen sits open on a truck
+  // seat, and the code is a key to someone's property.
+  if (o.gate_code_snapshot) {
+    const btn = el('button', 'ops-secret', 'Show gate code');
+    btn.type = 'button';
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      btn.textContent = `Gate ${o.gate_code_snapshot}`;
+      btn.disabled = true;
+    });
+    bits.append(btn);
+  }
+
+  if (o.needs_gallons) bits.append(el('span', 'chip chip--cancelled', 'Needs gallons'));
+  else if (o.needs_photos) bits.append(el('span', 'chip chip--cancelled', 'Needs meter photo'));
+
+  card.append(bits);
+  return card;
+}
+
+async function load() {
+  const res = await fetch('/api/ops/orders');
+  if (res.status === 401 || res.status === 403) {
+    location.href = '/ops/login.html';
+    return;
+  }
+  const groups = $('groups');
+  const alerts = $('alerts');
+  groups.replaceChildren();
+  alerts.replaceChildren();
+
+  if (!res.ok) {
+    alerts.append(alertBox('stop', "Couldn't load the queue", 'Try again in a moment.'));
+    return;
+  }
+
+  const data = await res.json();
+  $('today').textContent = fmtDate(data.date);
+
+  // Rates first: if none are posted, nothing else on this screen matters
+  // because no customer can book.
+  try {
+    const pr = await fetch('/api/ops/fuel-prices');
+    if (pr.ok) {
+      const prices = await pr.json();
+      if (!prices.complete) {
+        const box = alertBox('stop', "Today's prices aren't posted",
+          'Customers cannot book until every grade has a rate.');
+        const link = el('a', 'textlink', 'Post prices now →');
+        link.href = '/ops/pricing.html';
+        link.style.display = 'inline-block';
+        link.style.marginTop = '8px';
+        box.querySelector('div').append(link);
+        alerts.append(box);
+      }
+    }
+  } catch { /* the queue still renders without this */ }
+
+  if (data.unsettled > 0) {
+    alerts.append(alertBox('warn', `${data.unsettled} delivery${data.unsettled === 1 ? '' : 's'} not settled`,
+      'Gallons or meter photos are missing. These cannot be billed until they are recorded.'));
+  }
+
+  const counts = $('counts');
+  counts.replaceChildren();
+  for (const [key, label] of [
+    ['scheduled', 'To confirm'], ['confirmed', 'Confirmed'],
+    ['en_route', 'On the way'], ['delivered', 'Done'],
+  ]) {
+    const c = el('div', 'ops-count');
+    const n = el('div', 'ops-count__n' + (data.counts[key] === 0 ? ' is-zero' : ''),
+      String(data.counts[key]));
+    c.append(n, el('div', 'ops-count__k', label));
+    counts.append(c);
+  }
+
+  if (!data.orders.length) {
+    groups.append(el('div', 'ops-empty', 'Nothing scheduled today.'));
+    return;
+  }
+
+  for (const status of ORDER) {
+    const list = data.orders.filter((o) => o.status === status);
+    if (!list.length) continue;
+    const g = el('div', 'ops-group');
+    g.style.marginTop = '14px';
+    g.append(el('div', 'ops-group__head', `${STATUS[status].label} · ${list.length}`));
+    for (const o of list) g.append(orderCard(o));
+    groups.append(g);
+  }
+}
+
+load();
+// The queue is a live run sheet; refresh while it sits open on the truck.
+setInterval(load, 60000);
+</script>
+</body>
+</html>

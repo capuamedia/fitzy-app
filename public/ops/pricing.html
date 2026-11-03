@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fuel prices · Fitzy Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/ops.css">
+</head>
+<body>
+<div class="ops">
+
+  <header class="ops-bar">
+    <span class="ops-bar__title">Fuel prices</span>
+    <span class="ops-bar__date" id="today">—</span>
+  </header>
+
+  <nav class="ops-nav">
+    <a href="/ops/">Queue</a>
+    <a href="/ops/pricing.html" class="is-active">Prices</a>
+    <a href="/ops/availability.html">Availability</a>
+  </nav>
+
+  <main class="ops-main">
+
+    <div id="alert" hidden></div>
+
+    <form class="ops-form card" id="form" novalidate>
+      <p class="ops-field__hint" style="margin-bottom:-4px">
+        Today's rate per gallon. Customers see this before they book, and
+        whatever you post here is the rate they are charged after delivery —
+        even if the market moves.
+      </p>
+
+      <div class="ops-field">
+        <label class="ops-field__label" for="p87">87 Regular</label>
+        <div class="ops-money">
+          <span class="ops-money__unit">$</span>
+          <input id="p87" name="87" type="text" inputmode="decimal"
+                 autocomplete="off" placeholder="0.000" aria-describedby="h87">
+          <span class="ops-money__per">per gal</span>
+        </div>
+        <span class="ops-prev" id="h87"></span>
+      </div>
+
+      <div class="ops-field">
+        <label class="ops-field__label" for="p91">91 Premium</label>
+        <div class="ops-money">
+          <span class="ops-money__unit">$</span>
+          <input id="p91" name="91" type="text" inputmode="decimal"
+                 autocomplete="off" placeholder="0.000" aria-describedby="h91">
+          <span class="ops-money__per">per gal</span>
+        </div>
+        <span class="ops-prev" id="h91"></span>
+      </div>
+
+      <div class="ops-field">
+        <label class="ops-field__label" for="pdiesel">Diesel</label>
+        <div class="ops-money">
+          <span class="ops-money__unit">$</span>
+          <input id="pdiesel" name="diesel" type="text" inputmode="decimal"
+                 autocomplete="off" placeholder="0.000" aria-describedby="hdiesel">
+          <span class="ops-money__per">per gal</span>
+        </div>
+        <span class="ops-prev" id="hdiesel"></span>
+      </div>
+
+      <button class="btn btn--primary" type="submit" id="save">Post today's prices</button>
+      <p class="btn-reason" id="reason" hidden></p>
+    </form>
+
+  </main>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const GRADES = ['87', '91', 'diesel'];
+const inputEl = (g) => $(g === 'diesel' ? 'pdiesel' : 'p' + g);
+const hintEl  = (g) => $(g === 'diesel' ? 'hdiesel' : 'h' + g);
+
+const fmtDate = (iso) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US',
+    { weekday: 'long', month: 'long', day: 'numeric' });
+};
+
+function showAlert(kind, title, body) {
+  const el = $('alert');
+  el.className = 'ops-alert' + (kind === 'stop' ? ' ops-alert--stop' : '');
+  el.innerHTML = '';
+  const wrap = document.createElement('div');
+  const t = document.createElement('div');
+  t.className = 'ops-alert__title';
+  t.textContent = title;
+  const b = document.createElement('div');
+  b.className = 'ops-alert__body';
+  b.textContent = body;
+  wrap.append(t, b);
+  el.append(wrap);
+  el.hidden = false;
+}
+
+async function load() {
+  const res = await fetch('/api/ops/fuel-prices');
+  if (res.status === 401 || res.status === 403) {
+    location.href = '/ops/login.html';
+    return;
+  }
+  if (!res.ok) {
+    showAlert('stop', "Couldn't load prices", 'Try again in a moment.');
+    return;
+  }
+  const data = await res.json();
+  $('today').textContent = fmtDate(data.date);
+
+  for (const g of GRADES) {
+    const posted = data.posted[g];
+    if (posted) {
+      inputEl(g).value = (posted.mills / 1000).toFixed(3);
+      hintEl(g).textContent = 'Posted today';
+    } else if (data.previous[g]) {
+      const p = data.previous[g];
+      // Shown as a starting point only. Never prefilled — a stale rate
+      // posted by accident is worse than no rate at all.
+      hintEl(g).textContent =
+        `Last posted $${(p.mills / 1000).toFixed(3)} on ${fmtDate(p.date)}`;
+    }
+  }
+
+  if (!data.complete) {
+    const missing = GRADES.filter((g) => !data.posted[g]);
+    showAlert('stop', 'Customers cannot book yet',
+      `No price posted today for ${missing.join(', ')}. ` +
+      `Booking is blocked for any grade without a rate.`);
+  } else {
+    $('alert').hidden = true;
+  }
+}
+
+$('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('save');
+  const reason = $('reason');
+  reason.hidden = true;
+
+  const prices = {};
+  let any = false;
+  for (const g of GRADES) {
+    const v = inputEl(g).value.trim();
+    inputEl(g).classList.remove('is-error');
+    if (v) { prices[g] = v; any = true; }
+  }
+
+  if (!any) {
+    reason.textContent = 'Enter at least one price to post.';
+    reason.hidden = false;
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Posting…';
+  try {
+    const res = await fetch('/api/ops/fuel-prices', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ prices }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      reason.textContent = data.error || 'Could not save.';
+      reason.hidden = false;
+      return;
+    }
+    const ok = document.createElement('div');
+    ok.className = 'ops-saved';
+    ok.textContent = 'Posted. Customers can book at these rates.';
+    $('form').prepend(ok);
+    setTimeout(() => ok.remove(), 4000);
+    await load();
+  } catch {
+    reason.textContent = 'Network problem — prices were not saved.';
+    reason.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Post today's prices";
+  }
+});
+
+load();
+</script>
+</body>
+</html>
