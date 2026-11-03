@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Order · Fitzy Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/ops.css">
+</head>
+<body>
+<div class="ops">
+
+  <header class="ops-bar">
+    <a href="/ops/" style="color:var(--on-navy);text-decoration:none;font-size:22px;line-height:1">←</a>
+    <span class="ops-bar__title" id="invoice">Order</span>
+    <span class="ops-bar__date" id="window">—</span>
+  </header>
+
+  <main class="ops-main">
+    <div id="alerts"></div>
+    <div id="detail"></div>
+  </main>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const id = new URLSearchParams(location.search).get('id');
+
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+};
+const usd = (c) => (c / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+
+const ACTION_LABEL = {
+  confirmed: 'Confirm this order',
+  en_route:  "I'm on the way",
+  delivered: 'Record the fill-up',
+  no_access: "Couldn't access the fuel door",
+  cancelled: 'Cancel this order',
+};
+
+let state = null;
+
+/* ---------------------------------------------------------------- render */
+
+function card(title) {
+  const c = el('div', 'card');
+  if (title) c.append(el('div', 'label', title));
+  return c;
+}
+
+function renderWhere(o) {
+  const c = card('Where');
+  c.append(el('div', 'ops-order__who', `${o.first_name} ${o.last_name}`));
+  c.append(el('div', 'ops-order__where', o.address_snapshot));
+
+  const bits = el('div', 'ops-order__meta');
+
+  const call = el('a', 'chip chip--amber', `Call ${o.phone}`);
+  call.href = `tel:${o.phone}`;
+  call.style.textDecoration = 'none';
+  bits.append(call);
+
+  if (o.gate_code_snapshot) {
+    const b = el('button', 'ops-secret', 'Show gate code');
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      b.textContent = `Gate ${o.gate_code_snapshot}`;
+      b.disabled = true;
+    });
+    bits.append(b);
+  }
+
+  if (o.pin_lat && o.pin_lng) {
+    const map = el('a', 'chip', 'Directions');
+    map.href = `https://maps.google.com/?q=${o.pin_lat},${o.pin_lng}`;
+    map.target = '_blank';
+    map.rel = 'noopener';
+    map.style.textDecoration = 'none';
+    bits.append(map);
+  }
+  c.append(bits);
+
+  if (o.parking_notes) {
+    const n = el('div', 'warn warn--sm');
+    n.style.marginTop = '12px';
+    n.textContent = o.parking_notes;
+    c.append(n);
+  }
+  return c;
+}
+
+function renderStatus(data) {
+  const o = data.order;
+  const c = card('Status');
+  const row = el('div');
+  row.style.cssText = 'display:flex;align-items:center;gap:10px;margin:6px 0 14px';
+  row.append(el('span', `chip chip--status chip--${o.status.replace('_', '')}`,
+    o.status.replace('_', ' ')));
+  if (data.visits) {
+    row.append(el('span', 'chip',
+      `Visit ${data.visits.used} of ${data.visits.included}`));
+    if (data.visits.overage_cents > 0) {
+      row.append(el('span', 'chip chip--amber',
+        `Overage ${usd(data.visits.overage_cents)}`));
+    }
+  }
+  c.append(row);
+
+  for (const next of data.next_actions) {
+    if (next === 'delivered') continue; // handled by the fill-up form below
+    const b = el('button',
+      next === 'cancelled' || next === 'no_access' ? 'btn btn--secondary' : 'btn btn--primary',
+      ACTION_LABEL[next]);
+    b.style.marginTop = '8px';
+    b.addEventListener('click', () => advance(next, b));
+    c.append(b);
+  }
+  return c;
+}
+
+function renderFillUp(data) {
+  const c = card('Record the fill-up');
+  const hint = el('p', 'ops-field__hint',
+    'Gallons actually pumped, per vehicle. Each is billed at the rate locked when this order was booked — not at today’s price.');
+  hint.style.margin = '6px 0 4px';
+  c.append(hint);
+
+  const form = el('div', 'ops-form');
+
+  for (const v of data.vehicles) {
+    const f = el('div', 'ops-field');
+    const name = [v.year, v.make, v.model].filter(Boolean).join(' ');
+    f.append(el('label', 'ops-field__label',
+      `${name} · ${v.fuel_grade === 'diesel' ? 'Diesel' : v.fuel_grade} @ ${v.rate_display}/gal`));
+
+    const money = el('div', 'ops-money');
+    const input = el('input');
+    input.type = 'text';
+    input.inputMode = 'decimal';
+    input.placeholder = '0.000';
+    input.autocomplete = 'off';
+    input.dataset.ov = v.id;
+    if (v.gallons !== null && v.gallons !== undefined) input.value = v.gallons;
+    money.append(el('span', 'ops-money__unit', ''), input, el('span', 'ops-money__per', 'gal'));
+    f.append(money);
+
+    const line = el('span', 'ops-field__hint');
+    line.dataset.line = v.id;
+    f.append(line);
+
+    const recompute = () => {
+      const g = parseFloat(input.value);
+      line.textContent = Number.isFinite(g) && g > 0
+        ? `${g} gal × ${v.rate_display} = ${usd(Math.round((g * v.locked_price_mills) / 10))}`
+        : (v.tank_gallons ? `Tank holds about ${v.tank_gallons} gal` : '');
+      total();
+    };
+    input.addEventListener('input', recompute);
+    recompute();
+
+    form.append(f);
+  }
+
+  const sum = el('div');
+  sum.style.cssText = 'display:flex;justify-content:space-between;font-weight:700;font-size:18px;padding-top:12px;border-top:1px solid var(--divider)';
+  sum.append(el('span', null, 'Fuel total'), el('span', 'num', '—'));
+  sum.lastChild.id = 'fuelsum';
+  form.append(sum);
+
+  const note = el('p', 'ops-field__hint',
+    `Charged separately from the ${data.order.due_at_booking} already taken at booking.`);
+  form.append(note);
+
+  // Settlement
+  const settle = el('div', 'ops-field');
+  settle.append(el('label', 'ops-field__label', 'How was the fuel paid?'));
+  const seg = el('div');
+  seg.style.cssText = 'display:flex;gap:8px';
+  for (const [val, label] of [['card', 'Charge card on file'], ['cash', 'Collected cash']]) {
+    const b = el('button', 'btn btn--secondary', label);
+    b.type = 'button';
+    b.dataset.settle = val;
+    b.style.cssText = 'height:48px;letter-spacing:1px;font-size:13px';
+    if (val === 'card') b.className = 'btn btn--primary';
+    b.addEventListener('click', () => {
+      for (const x of seg.children) x.className = 'btn btn--secondary';
+      b.className = 'btn btn--primary';
+    });
+    seg.append(b);
+  }
+  settle.append(seg);
+  form.append(settle);
+
+  const go = el('button', 'btn btn--primary', 'Settle this delivery');
+  go.id = 'settle';
+  go.addEventListener('click', () => settleDelivery(go));
+  form.append(go);
+  form.append(el('p', 'btn-reason', '')).lastChild.id = 'settlereason';
+  $('detail').dataset.ready = '1';
+
+  c.append(form);
+  return c;
+}
+
+function total() {
+  const sum = $('fuelsum');
+  if (!sum || !state) return;
+  let t = 0, any = false;
+  for (const v of state.vehicles) {
+    const input = document.querySelector(`input[data-ov="${v.id}"]`);
+    const g = parseFloat(input?.value);
+    if (Number.isFinite(g) && g > 0) { t += Math.round((g * v.locked_price_mills) / 10); any = true; }
+  }
+  sum.textContent = any ? usd(t) : '—';
+}
+
+function renderSettled(data) {
+  const o = data.order;
+  const c = card('Settled');
+  const t = el('table', 'ops-table');
+  const head = el('tr');
+  for (const h of ['Vehicle', 'Gallons', 'Rate', 'Total']) head.append(el('th', null, h));
+  t.append(head);
+  for (const v of data.vehicles) {
+    const r = el('tr');
+    r.append(el('td', null, [v.year, v.make, v.model].filter(Boolean).join(' ')));
+    r.append(el('td', 'num', v.gallons ?? '—'));
+    r.append(el('td', 'num', v.rate_display));
+    r.append(el('td', 'num', v.line_total ?? '—'));
+    t.append(r);
+  }
+  c.append(t);
+
+  const split = el('div');
+  split.style.cssText = 'margin-top:14px;display:flex;flex-direction:column;gap:6px';
+  split.append(lineRow('Charged at booking', o.due_at_booking));
+  split.append(lineRow('Fuel after delivery', o.fuel_total ?? '—'));
+  split.append(el('p', 'ops-field__hint',
+    `Settled by ${o.settlement_method === 'mixed' ? 'card at booking, cash for fuel'
+      : o.settlement_method === 'cash' ? 'cash' : 'card on file'}. Two separate charges.`));
+  c.append(split);
+  return c;
+}
+
+function lineRow(k, v) {
+  const r = el('div');
+  r.style.cssText = 'display:flex;justify-content:space-between;font-size:14.5px';
+  r.append(el('span', null, k), el('span', 'num', v));
+  return r;
+}
+
+function renderPhotos(data) {
+  const c = card('Meter photos');
+  c.append(el('p', 'ops-field__hint',
+    'Proof of gallons delivered. These appear on the customer’s receipt.'));
+
+  if (data.photos.length) {
+    const strip = el('div');
+    strip.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin:10px 0';
+    for (const p of data.photos) {
+      const img = el('img');
+      img.src = `/api/ops/photo?key=${encodeURIComponent(p.r2_key)}`;
+      img.alt = `Meter photo, ${p.kind}`;
+      img.loading = 'lazy';
+      img.style.cssText = 'width:96px;height:96px;object-fit:cover;border-radius:12px;background:var(--chip-bg)';
+      strip.append(img);
+    }
+    c.append(strip);
+  }
+
+  const label = el('label', 'btn btn--secondary', 'Add a meter photo');
+  label.style.cssText += ';margin-top:10px;cursor:pointer';
+  const file = el('input');
+  file.type = 'file';
+  file.accept = 'image/*';
+  file.capture = 'environment';
+  file.style.display = 'none';
+  file.addEventListener('change', () => uploadPhoto(file, label));
+  label.append(file);
+  c.append(label);
+  c.append(el('p', 'btn-reason', '')).lastChild.id = 'photoreason';
+  return c;
+}
+
+/* ----------------------------------------------------------------- actions */
+
+async function advance(status, btn) {
+  btn.disabled = true;
+  const was = btn.textContent;
+  btn.textContent = 'Working…';
+  try {
+    const res = await fetch(`/api/ops/orders/${encodeURIComponent(id)}/status`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    const data = await res.json();
+    if (!res.ok) { showAlert('stop', 'Could not update', data.error); return; }
+    await load();
+  } finally { btn.disabled = false; btn.textContent = was; }
+}
+
+async function settleDelivery(btn, confirmUnusual = false) {
+  const reason = $('settlereason');
+  reason.textContent = '';
+  const gallons = {};
+  for (const v of state.vehicles) {
+    const input = document.querySelector(`input[data-ov="${v.id}"]`);
+    gallons[v.id] = input?.value.trim() ?? '';
+  }
+  const settlement = document.querySelector('[data-settle].btn--primary')?.dataset.settle || 'card';
+
+  btn.disabled = true;
+  btn.textContent = 'Settling…';
+  try {
+    const res = await fetch(`/api/ops/orders/${encodeURIComponent(id)}/delivery`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ gallons, settlement, confirm_unusual: confirmUnusual }),
+    });
+    const data = await res.json();
+
+    if (res.status === 409 && data.needs_confirmation) {
+      const s = data.suspect[0];
+      const ok = confirm(
+        `${s.gallons} gallons into a ${s.vehicle}, which holds about ${s.tank_gallons}.\n\n` +
+        `If that's a typo, cancel and fix it. Settle anyway?`
+      );
+      if (ok) return settleDelivery(btn, true);
+      return;
+    }
+    if (!res.ok) { reason.textContent = data.error || 'Could not settle.'; return; }
+    await load();
+  } catch {
+    reason.textContent = 'Network problem — nothing was settled.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Settle this delivery';
+  }
+}
+
+async function uploadPhoto(input, label) {
+  const f = input.files?.[0];
+  if (!f) return;
+  const reason = $('photoreason');
+  reason.textContent = '';
+  label.textContent = 'Uploading…';
+  try {
+    const fd = new FormData();
+    fd.append('photo', f);
+    fd.append('kind', 'after');
+    const res = await fetch(`/api/ops/orders/${encodeURIComponent(id)}/photo`, {
+      method: 'POST', body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok) { reason.textContent = data.error || 'Upload failed.'; return; }
+    await load();
+  } catch {
+    reason.textContent = 'Upload failed — nothing was saved.';
+  } finally {
+    label.firstChild.textContent = 'Add a meter photo';
+  }
+}
+
+function showAlert(kind, title, body) {
+  const box = el('div', 'ops-alert' + (kind === 'stop' ? ' ops-alert--stop' : ''));
+  const w = el('div');
+  w.append(el('div', 'ops-alert__title', title));
+  if (body) w.append(el('div', 'ops-alert__body', body));
+  box.append(w);
+  $('alerts').append(box);
+}
+
+/* -------------------------------------------------------------------- load */
+
+async function load() {
+  if (!id) { showAlert('stop', 'No order specified'); return; }
+  const res = await fetch(`/api/ops/orders/${encodeURIComponent(id)}`);
+  if (res.status === 401 || res.status === 403) { location.href = '/ops/login.html'; return; }
+
+  const detail = $('detail');
+  detail.replaceChildren();
+  $('alerts').replaceChildren();
+
+  if (!res.ok) { showAlert('stop', 'Could not load this order'); return; }
+
+  state = await res.json();
+  const o = state.order;
+
+  $('invoice').textContent = o.invoice_number || 'Order';
+  $('window').textContent = `${o.delivery_date} · ${o.window}`;
+
+  const settled = o.fuel_total_cents !== null;
+  if (o.status === 'delivered' && !settled) {
+    showAlert('stop', 'Not settled yet', 'Gallons have not been recorded, so this delivery cannot be billed.');
+  }
+  if (settled && state.photos.length === 0) {
+    showAlert('warn', 'No meter photo', 'The receipt promises one on every fill.');
+  }
+
+  detail.append(renderStatus(state));
+  detail.append(renderWhere(o));
+  if (settled) detail.append(renderSettled(state));
+  else if (['en_route', 'delivered'].includes(o.status)) detail.append(renderFillUp(state));
+  detail.append(renderPhotos(state));
+}
+
+load();
+</script>
+</body>
+</html>
