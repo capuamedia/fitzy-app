@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Availability · Fitzy Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/ops.css">
+<style>
+  .day { background: var(--white); border-radius: var(--r-card); box-shadow: var(--shadow-card); padding: 14px 16px; }
+  .day.is-closed { opacity: .62; }
+  .day__top { display: flex; align-items: center; gap: 12px; }
+  .day__name { font-weight: 700; font-size: 16px; flex: 1; }
+  .day__times { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .day__times input { height: 46px; width: 108px; padding: 0 12px; font: 600 16px 'Barlow', sans-serif;
+                      font-variant-numeric: tabular-nums; background: var(--white);
+                      border: 1px solid var(--border); border-radius: 23px; text-align: center; }
+  .day__times input:focus { outline: 0; border: 2px solid var(--amber); }
+  .day__preview { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .slot { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+          background: var(--chip-bg); color: var(--chip-text); border-radius: var(--r-pill); padding: 4px 10px; }
+  .slot.is-short { background: var(--amber-chip); color: var(--amber-ink); }
+  .toggle { width: 52px; height: 30px; border-radius: 999px; background: var(--ring);
+            border: 0; position: relative; cursor: pointer; flex: none; }
+  .toggle.is-on { background: var(--amber); }
+  .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px;
+                   border-radius: 50%; background: #fff; transition: transform .15s; }
+  .toggle.is-on::after { transform: translateX(22px); }
+  .bo { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--divider); }
+  .bo:first-of-type { border-top: 0; }
+</style>
+</head>
+<body>
+<div class="ops">
+
+  <header class="ops-bar">
+    <span class="ops-bar__title">Availability</span>
+    <span class="ops-bar__date" id="cap">—</span>
+  </header>
+
+  <nav class="ops-nav">
+    <a href="/ops/">Queue</a>
+    <a href="/ops/pricing.html">Prices</a>
+    <a href="/ops/availability.html" class="is-active">Availability</a>
+  </nav>
+
+  <main class="ops-main">
+    <div id="alerts"></div>
+
+    <div class="card">
+      <div class="label">How bookings are sliced</div>
+      <div class="ops-form" style="margin-top:12px">
+        <div class="ops-field">
+          <label class="ops-field__label" for="len">Delivery window length</label>
+          <div class="ops-money">
+            <input id="len" type="text" inputmode="numeric" style="font-size:18px">
+            <span class="ops-money__per">minutes</span>
+          </div>
+          <span class="ops-field__hint">Customers pick a window, not a time. Longer windows give you more room to route.</span>
+        </div>
+        <div class="ops-field">
+          <label class="ops-field__label" for="slots">Deliveries per window</label>
+          <div class="ops-money">
+            <input id="slots" type="text" inputmode="numeric" style="font-size:18px">
+            <span class="ops-money__per">stops</span>
+          </div>
+          <span class="ops-field__hint" id="pace"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="label" style="margin-top:4px">Your week</div>
+    <div id="days" style="display:flex;flex-direction:column;gap:10px"></div>
+
+    <div class="card">
+      <div class="label">Days you're closed</div>
+      <p class="ops-field__hint" style="margin:6px 0 10px">
+        Holidays, vacation, anything one-off. Blocks new bookings. Deliveries already on the books stay there.
+      </p>
+      <div id="blackouts"></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+        <input id="bodate" type="date" style="height:46px;padding:0 14px;border:1px solid var(--border);border-radius:23px;font:600 15px 'Barlow',sans-serif">
+        <button class="btn btn--secondary" id="boadd" style="width:auto;padding:0 20px;height:46px">Add</button>
+      </div>
+      <p class="btn-reason" id="boreason" hidden></p>
+    </div>
+
+    <button class="btn btn--primary" id="save">Save availability</button>
+    <p class="btn-reason" id="reason" hidden></p>
+  </main>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const el = (t, c, x) => { const n = document.createElement(t); if (c) n.className = c; if (x !== undefined) n.textContent = x; return n; };
+const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MIN_TRAILING = 60;
+
+let state = null;
+
+const toMin = (s) => { const [h,m] = s.split(':').map(Number); return h*60+m; };
+const toHHMM = (m) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+
+// Mirrors windowsForPeriod() in functions/_shared/lib.js so the preview
+// matches what the server will actually offer.
+function windows(open, close, len) {
+  const o = toMin(open), c = toMin(close);
+  if (!(c > o) || len <= 0) return [];
+  const out = []; let cur = o;
+  while (cur < c) {
+    let end = Math.min(cur + len, c);
+    const rem = c - end;
+    if (rem > 0 && rem < MIN_TRAILING) end = c;
+    out.push({ start: toHHMM(cur), end: toHHMM(end), short: end - cur < len });
+    cur = end;
+  }
+  return out;
+}
+
+const pretty = (hhmm) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  const ampm = h < 12 ? 'am' : 'pm';
+  const hr = h % 12 === 0 ? 12 : h % 12;
+  return m === 0 ? `${hr}${ampm}` : `${hr}:${String(m).padStart(2,'0')}${ampm}`;
+};
+
+function alertBox(kind, title, body) {
+  const b = el('div', 'ops-alert' + (kind === 'stop' ? ' ops-alert--stop' : ''));
+  const w = el('div');
+  w.append(el('div', 'ops-alert__title', title));
+  if (body) w.append(el('div', 'ops-alert__body', body));
+  b.append(w);
+  return b;
+}
+
+function renderDays() {
+  const host = $('days');
+  host.replaceChildren();
+  const len = parseInt($('len').value, 10) || 240;
+  const cap = parseInt($('slots').value, 10) || 6;
+  let weekSlots = 0;
+
+  for (const d of state.days) {
+    const card = el('div', 'day' + (d.open ? '' : ' is-closed'));
+    const top = el('div', 'day__top');
+    top.append(el('span', 'day__name', d.name));
+
+    const t = el('button', 'toggle' + (d.open ? ' is-on' : ''));
+    t.type = 'button';
+    t.setAttribute('aria-label', `${d.name} ${d.open ? 'open' : 'closed'}`);
+    t.addEventListener('click', () => {
+      d.open = !d.open;
+      if (d.open && !d.periods.length) d.periods = [{ opens_at: '09:00', closes_at: '17:00' }];
+      renderDays();
+    });
+    top.append(t);
+    card.append(top);
+
+    if (d.open) {
+      for (const p of d.periods) {
+        const row = el('div', 'day__times');
+        for (const key of ['opens_at', 'closes_at']) {
+          const i = el('input');
+          i.type = 'time';
+          i.value = p[key];
+          i.addEventListener('change', () => { p[key] = i.value; renderDays(); });
+          row.append(i);
+          if (key === 'opens_at') row.append(el('span', 'ops-field__hint', 'to'));
+        }
+        card.append(row);
+      }
+
+      const prev = el('div', 'day__preview');
+      const all = d.periods.flatMap((p) => windows(p.opens_at, p.closes_at, len));
+      for (const w of all) {
+        prev.append(el('span', 'slot' + (w.short ? ' is-short' : ''),
+          `${pretty(w.start)}–${pretty(w.end)}`));
+      }
+      card.append(prev);
+      weekSlots += all.length * cap;
+      card.append(el('div', 'ops-field__hint',
+        `${all.length} window${all.length === 1 ? '' : 's'} · up to ${all.length * cap} deliveries`));
+    } else {
+      card.append(el('div', 'ops-field__hint', 'Closed — customers see no windows this day'));
+    }
+    host.append(card);
+  }
+
+  $('cap').textContent = `${weekSlots} deliveries a week`;
+  $('pace').textContent =
+    `At ${cap} per ${len}-minute window that's about ${Math.round(len / cap)} minutes a stop, including driving.`;
+}
+
+function renderBlackouts() {
+  const host = $('blackouts');
+  host.replaceChildren();
+  if (!state.blackouts.length) {
+    host.append(el('div', 'ops-field__hint', 'None set.'));
+    return;
+  }
+  for (const b of state.blackouts) {
+    const row = el('div', 'bo');
+    const [y, m, d] = b.date.split('-').map(Number);
+    row.append(el('span', null, new Date(y, m - 1, d)
+      .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })));
+    if (b.booked > 0) {
+      row.append(el('span', 'chip chip--cancelled',
+        `${b.booked} still booked`));
+    }
+    const x = el('button', 'textlink', 'Remove');
+    x.type = 'button';
+    x.style.marginLeft = 'auto';
+    x.addEventListener('click', async () => {
+      await fetch(`/api/ops/blackouts?date=${encodeURIComponent(b.date)}`, { method: 'DELETE' });
+      await load();
+    });
+    row.append(x);
+    host.append(row);
+  }
+}
+
+$('boadd').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const date = $('bodate').value;
+  const reason = $('boreason');
+  reason.hidden = true;
+  if (!date) { reason.textContent = 'Pick a date first.'; reason.hidden = false; return; }
+  await addBlackout(date, false);
+});
+
+async function addBlackout(date, confirmed) {
+  const reason = $('boreason');
+  const res = await fetch('/api/ops/blackouts', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ date, confirm: confirmed }),
+  });
+  const data = await res.json();
+  if (res.status === 409 && data.needs_confirmation) {
+    if (confirm(`${data.message}\n\nBlock new bookings for this day?`)) return addBlackout(date, true);
+    return;
+  }
+  if (!res.ok) { reason.textContent = data.error || 'Could not add that date.'; reason.hidden = false; return; }
+  $('bodate').value = '';
+  await load();
+}
+
+$('save').addEventListener('click', async () => {
+  const btn = $('save'), reason = $('reason');
+  reason.hidden = true;
+  const hours = state.days.filter((d) => d.open)
+    .flatMap((d) => d.periods.map((p) => ({ dow: d.dow, opens_at: p.opens_at, closes_at: p.closes_at })));
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const res = await fetch('/api/ops/availability', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        hours,
+        settings: {
+          window_length_minutes: $('len').value,
+          slots_per_window: $('slots').value,
+        },
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) { reason.textContent = data.error || 'Could not save.'; reason.hidden = false; return; }
+    const ok = el('div', 'ops-saved', 'Saved. New bookings use these windows.');
+    $('alerts').replaceChildren(ok);
+    setTimeout(() => ok.remove(), 4000);
+    await load();
+  } catch {
+    reason.textContent = 'Network problem — nothing was saved.';
+    reason.hidden = false;
+  } finally { btn.disabled = false; btn.textContent = 'Save availability'; }
+});
+
+async function load() {
+  const res = await fetch('/api/ops/availability');
+  if (res.status === 401 || res.status === 403) { location.href = '/ops/login.html'; return; }
+  if (!res.ok) { $('alerts').replaceChildren(alertBox('stop', "Couldn't load availability")); return; }
+
+  state = await res.json();
+  $('len').value = state.settings.window_length_minutes;
+  $('slots').value = state.settings.slots_per_window;
+  $('bodate').min = new Date().toISOString().slice(0, 10);
+
+  const stranded = state.blackouts.filter((b) => b.booked > 0);
+  if (stranded.length) {
+    $('alerts').replaceChildren(alertBox('warn',
+      'Deliveries booked on a closed day',
+      `${stranded.map((s) => s.date).join(', ')} — these were booked before the day was blocked and are still on the books.`));
+  } else {
+    $('alerts').replaceChildren();
+  }
+
+  renderDays();
+  renderBlackouts();
+}
+
+for (const id of ['len', 'slots']) $(id).addEventListener('input', renderDays);
+load();
+</script>
+</body>
+</html>

@@ -190,3 +190,67 @@ export function staleness(rates) {
 }
 
 export { GRADES };
+
+/* --- delivery windows -----------------------------------------------------
+ * Service hours plus a window length become the slots a customer can book.
+ *
+ * This lives here rather than in the availability screen because the booking
+ * flow has to generate exactly the same windows. Two implementations would
+ * drift, and the symptom would be a customer booking a window that does not
+ * exist on Justin's end.
+ * ------------------------------------------------------------------------- */
+
+const toMinutes = (hhmm) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+};
+const toHHMM = (mins) =>
+  `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+
+/**
+ * A trailing stub shorter than this is absorbed into the previous window
+ * instead of being offered. A 40-minute slot is not worth a customer's
+ * choice, and it is not worth a trip for Justin.
+ */
+const MIN_TRAILING_WINDOW = 60;
+
+/**
+ * Split one open period into bookable windows.
+ *
+ *   06:30-21:30 at 240 minutes ->
+ *   06:30-10:30, 10:30-14:30, 14:30-18:30, 18:30-21:30
+ *
+ * The last window is short rather than running past closing. Justin's day
+ * ends when he says it ends.
+ */
+export function windowsForPeriod(opensAt, closesAt, lengthMinutes) {
+  const open = toMinutes(opensAt);
+  const close = toMinutes(closesAt);
+  if (!(close > open) || lengthMinutes <= 0) return [];
+
+  const windows = [];
+  let cursor = open;
+  while (cursor < close) {
+    let end = Math.min(cursor + lengthMinutes, close);
+    const remainder = close - end;
+    // Absorb a stub rather than offering it as its own slot.
+    if (remainder > 0 && remainder < MIN_TRAILING_WINDOW) end = close;
+    windows.push({ start: toHHMM(cursor), end: toHHMM(end) });
+    cursor = end;
+  }
+  return windows;
+}
+
+/**
+ * All windows for one weekday, across however many open periods that day
+ * has. A split shift (9-5 plus 7-10pm) is two rows and produces two runs.
+ */
+export function windowsForDay(hoursRows, lengthMinutes) {
+  return hoursRows
+    .slice()
+    .sort((a, b) => toMinutes(a.opens_at) - toMinutes(b.opens_at))
+    .flatMap((r) => windowsForPeriod(r.opens_at, r.closes_at, lengthMinutes));
+}
+
+export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+export { toMinutes, toHHMM };
