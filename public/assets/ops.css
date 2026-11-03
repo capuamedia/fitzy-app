@@ -51,6 +51,10 @@
 }
 .ops-nav a.is-active { background: var(--navy); color: var(--on-navy); }
 
+/* Built for a phone held next to a truck. Capped on desktop so the run
+   sheet stays scannable instead of stretching across a monitor. */
+.ops-main,
+.ops-nav { max-width: 680px; margin-inline: auto; }
 .ops-main { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
 
 /* --- the alert strip ------------------------------------------------------
