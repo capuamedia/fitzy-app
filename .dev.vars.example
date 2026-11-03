@@ -1,0 +1,9 @@
+# Local secrets for `wrangler pages dev`. Copy to .dev.vars and fill in.
+# .dev.vars is gitignored. Never commit real keys.
+STRIPE_SECRET_KEY=sk_test_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
+TWILIO_ACCOUNT_SID=ACxxx
+TWILIO_AUTH_TOKEN=xxx
+TWILIO_FROM_NUMBER=+15555550100
+GOOGLE_MAPS_SERVER_KEY=xxx
+SESSION_SECRET=generate-a-long-random-string

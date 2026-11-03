@@ -1,0 +1,43 @@
+name = "fitzy-app"
+compatibility_date = "2026-11-01"
+pages_build_output_dir = "public"
+
+# ---------------------------------------------------------------------------
+# D1 — application database.
+# Create with:  npm run db:create
+# Then paste the returned database_id below.
+# ---------------------------------------------------------------------------
+[[d1_databases]]
+binding = "DB"
+database_name = "fitzy-db"
+database_id = "PASTE_DATABASE_ID_AFTER_CREATE"
+
+# ---------------------------------------------------------------------------
+# R2 — pump meter photos.
+# These are evidence of gallons delivered and are referenced from invoices,
+# so the bucket is never public. Images are served through a signed Function.
+# Create with:  npm run r2:create
+# ---------------------------------------------------------------------------
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "fitzy-photos"
+
+# ---------------------------------------------------------------------------
+# Secrets — set with `wrangler pages secret put <NAME>`, never committed.
+#
+#   STRIPE_SECRET_KEY        Stripe API key (test key locally)
+#   STRIPE_WEBHOOK_SECRET    Signing secret for the Stripe webhook endpoint
+#   TWILIO_ACCOUNT_SID       Twilio account SID
+#   TWILIO_AUTH_TOKEN        Twilio auth token
+#   TWILIO_FROM_NUMBER       The number service texts are sent from
+#   GOOGLE_MAPS_SERVER_KEY   Server-side key: geocoding only, IP-restricted
+#   SESSION_SECRET           HMAC key for session cookies
+#
+# The Maps *browser* key is separate, referrer-restricted, and injected at
+# build time — it is public by nature, so it must be locked to the domain and
+# must NOT have Geocoding enabled. Geocoding runs server-side only, so a
+# scraped browser key cannot run up the bill.
+# ---------------------------------------------------------------------------
+
+[vars]
+ENVIRONMENT = "development"

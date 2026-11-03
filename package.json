@@ -1,0 +1,21 @@
+{
+  "name": "fitzy-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fitzy Mobile Fueling — customer app and ops dashboard",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler pages dev public --d1 DB=fitzy-db --r2 PHOTOS=fitzy-photos --compatibility-date=2026-11-01",
+    "db:create": "wrangler d1 create fitzy-db",
+    "db:migrate:local": "wrangler d1 execute fitzy-db --local --file=./schema/001_init.sql",
+    "db:seed:local": "wrangler d1 execute fitzy-db --local --file=./schema/002_seed_config.sql",
+    "db:reset:local": "npm run db:migrate:local && npm run db:seed:local",
+    "db:migrate:remote": "wrangler d1 execute fitzy-db --remote --file=./schema/001_init.sql",
+    "db:seed:remote": "wrangler d1 execute fitzy-db --remote --file=./schema/002_seed_config.sql",
+    "r2:create": "wrangler r2 bucket create fitzy-photos",
+    "deploy": "wrangler pages deploy public --project-name=fitzy-app"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}
