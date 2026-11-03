@@ -70,7 +70,7 @@ INSERT INTO settings (key, value, description) VALUES
   -- read better in a running tally. The .99 convention applies to what the
   -- customer buys, not to fees and tips.
   ('extra_vehicle_cents', '1000',
-   'Charged per vehicle beyond the first two, per visit. Applies to members too [ASSUMED - Q6]'),
+   'Charged per vehicle beyond the first two, per visit. Applies to members too. CONFIRMED by Justin 2026-11-03'),
   ('motorhome_fee_cents', '4000',
    'Charged per motorhome, separate from and on top of vehicle fees'),
   ('vehicles_included_per_visit', '2',
@@ -98,7 +98,16 @@ INSERT INTO settings (key, value, description) VALUES
 
   -- Membership
   ('overage_policy', 'per_visit_rate',
-   'What happens after a member uses all visits. PLACEHOLDER - Q8 is unanswered'),
+   'A member past their included visits pays the non-member per-visit fee for the delivery zone. They are never blocked from booking. CONFIRMED by Justin 2026-11-03'),
+
+  -- Billing renews on the signup-date anniversary, not a shared date for
+  -- everyone. Avoids proration on every mid-month signup, spreads deposits
+  -- across the month, and - the operational reason - staggers when visit
+  -- counters reset, so demand does not spike on one day. CONFIRMED 2026-11-03.
+  ('billing_anchor', 'signup_anniversary',
+   'signup_anniversary | fixed_day. Stripe default behaviour; the cycle anchors to the subscription creation date'),
+  ('billing_short_month_rule', 'last_day',
+   'A cycle anchored on the 29th, 30th or 31st bills on the last day of a shorter month, then returns to its anchor day'),
   ('plan_follows_customer', 'true',
    'Member plan covers deliveries anywhere in the service area, not just their own zone [ASSUMED - Q9, STRUCTURAL]'),
   ('plan_change_proration', 'none',

@@ -29,11 +29,13 @@ VALUES ('dev-l1', 'dev-cust', 'Home', '1420 Lynn Rd', 'Thousand Oaks', '91360',
         2, datetime('now'), 1);
 
 -- Membership: Thousand Oaks standard plan, 4 visits.
+-- The cycle runs from the signup anniversary, not a shared date — signed up
+-- on the 12th, so it renews on the 12th.
 INSERT INTO memberships (id, user_id, plan_id, zone_id, price_cents, visits_included,
                          cycle_start, cycle_end)
 VALUES ('dev-m1', 'dev-cust', 1, 2, 5999, 4,
-        date('now', 'start of month'),
-        date('now', 'start of month', '+1 month', '-1 day'));
+        date('now', '-22 days'),
+        date('now', '-22 days', '+1 month', '-1 day'));
 
 -- Today's posted rates, so booking is not blocked on a fresh database.
 INSERT INTO fuel_prices (effective_date, fuel_grade, price_mills, posted_by_user_id) VALUES
