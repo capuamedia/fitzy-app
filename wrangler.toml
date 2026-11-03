@@ -10,7 +10,7 @@ pages_build_output_dir = "public"
 [[d1_databases]]
 binding = "DB"
 database_name = "fitzy-db"
-database_id = "PASTE_DATABASE_ID_AFTER_CREATE"
+database_id = "1933fd43-cd14-4c11-9a5e-4a8c600b91ca"
 
 # ---------------------------------------------------------------------------
 # R2 — pump meter photos.
