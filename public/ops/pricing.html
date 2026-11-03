@@ -121,20 +121,32 @@ async function load() {
     if (posted) {
       inputEl(g).value = (posted.mills / 1000).toFixed(3);
       hintEl(g).textContent = 'Posted today';
-    } else if (data.previous[g]) {
-      const p = data.previous[g];
-      // Shown as a starting point only. Never prefilled — a stale rate
-      // posted by accident is worse than no rate at all.
+    } else if (data.in_force[g]) {
+      // Carrying forward. Shown, never prefilled — a stale rate re-posted by
+      // accident as today's is worse than an obvious carry-forward.
+      const f = data.in_force[g];
       hintEl(g).textContent =
-        `Last posted $${(p.mills / 1000).toFixed(3)} on ${fmtDate(p.date)}`;
+        `Carrying ${f.display} from ${fmtDate(f.source_date)}` +
+        (f.days_stale > 1 ? ` — ${f.days_stale} days old` : '');
     }
   }
 
-  if (!data.complete) {
-    const missing = GRADES.filter((g) => !data.posted[g]);
+  // A rate that carried forward is still a live rate customers are being
+  // quoted. Say which day it came from and how old it is — a stale price
+  // only ever costs Justin money.
+  const st = data.staleness;
+  if (st.level === 'missing') {
     showAlert('stop', 'Customers cannot book yet',
-      `No price posted today for ${missing.join(', ')}. ` +
-      `Booking is blocked for any grade without a rate.`);
+      'No price has ever been posted for one or more grades, so there is nothing to quote.');
+  } else if (st.level === 'stale') {
+    const src = Object.values(data.in_force)[0]?.source_date;
+    showAlert('stop', `Running on prices from ${fmtDate(src)}`,
+      `Customers are being quoted a rate that is ${st.days} days old. If fuel has moved since, ` +
+      `you are absorbing the difference on every fill.`);
+  } else if (st.level === 'carried') {
+    const src = Object.values(data.in_force)[0]?.source_date;
+    showAlert('warn', `Using yesterday's prices`,
+      `Nothing posted today, so ${fmtDate(src)}'s rates are carrying forward.`);
   } else {
     $('alert').hidden = true;
   }

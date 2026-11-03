@@ -232,6 +232,12 @@ CREATE TABLE orders (
   gate_code_snapshot   TEXT,
   parking_notes        TEXT,
 
+  -- Which day's posted rate the fuel was billed at. Usually the delivery
+  -- date; earlier when Justin hadn't posted that morning and the last rate
+  -- carried forward. Recorded so "why was this billed at $4.899?" has an
+  -- answer that doesn't depend on anyone's memory.
+  fuel_rate_source_date TEXT,
+
   -- Charged at booking
   delivery_fee_cents   INTEGER NOT NULL DEFAULT 0,
   extra_vehicle_cents  INTEGER NOT NULL DEFAULT 0,

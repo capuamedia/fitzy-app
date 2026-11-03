@@ -7,7 +7,7 @@
  * screen shows both so nobody has to work out why the number moved.
  */
 
-import { json, fail, requireOwner, centsToUsd, millsToUsd } from '../../../_shared/lib.js';
+import { json, fail, requireOwner, centsToUsd, millsToUsd, effectiveRates, staleness } from '../../../_shared/lib.js';
 
 export async function onRequestGet({ request, env, params }) {
   const who = await requireOwner(request, env.DB);
@@ -42,12 +42,10 @@ export async function onRequestGet({ request, env, params }) {
     .bind(params.id)
     .all();
 
-  // What this delivery actually bills at: the rate posted for its date.
-  const { results: dayRates } = await env.DB
-    .prepare('SELECT fuel_grade, price_mills FROM fuel_prices WHERE effective_date = ?')
-    .bind(order.delivery_date)
-    .all();
-  const rateFor = Object.fromEntries(dayRates.map((r) => [r.fuel_grade, r.price_mills]));
+  // What this delivery bills at: the rate in force on its delivery date,
+  // which is the last posted rate carried forward if none was posted that
+  // morning.
+  const rateFor = await effectiveRates(env.DB, order.delivery_date);
 
   const { results: photos } = await env.DB
     .prepare(
@@ -91,20 +89,24 @@ export async function onRequestGet({ request, env, params }) {
       // Once settled, the billed rate is a fact on the row. Before that, it
       // is whatever is posted for the delivery date — and null if Justin
       // has not posted that day's rate yet.
-      const billed = v.billed_price_mills ?? rateFor[v.fuel_grade] ?? null;
+      const inForce = rateFor[v.fuel_grade] ?? null;
+      const billed = v.billed_price_mills ?? inForce?.mills ?? null;
       return {
         ...v,
         quoted_display: millsToUsd(v.quoted_price_mills),
         billed_mills: billed,
         billed_display: billed === null ? null : millsToUsd(billed),
         rate_changed: billed !== null && billed !== v.quoted_price_mills,
+        rate_source_date: order.fuel_rate_source_date ?? inForce?.source_date ?? null,
+        rate_carried_forward:
+          (order.fuel_rate_source_date ?? inForce?.source_date ?? order.delivery_date)
+            !== order.delivery_date,
         line_total: v.line_total_cents === null ? null : centsToUsd(v.line_total_cents),
         photos: photos.filter((p) => p.order_vehicle_id === v.id),
       };
     }),
-    // Null means no rate is posted for the delivery date, so nothing here
-    // can be billed yet.
     delivery_date_rates: Object.keys(rateFor).length ? rateFor : null,
+    rate_staleness: staleness(rateFor),
     photos,
     visits,
     next_actions: nextActions(order.status),

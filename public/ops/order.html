@@ -132,12 +132,19 @@ function renderFillUp(data) {
   hint.style.margin = '6px 0 4px';
   c.append(hint);
 
+  const carried = data.vehicles.find((v) => v.rate_carried_forward);
   if (!data.delivery_date_rates) {
     const stop = el('div', 'warn warn--sm');
     stop.style.margin = '8px 0';
     stop.textContent =
-      `No fuel price was posted for ${data.order.delivery_date}, so this delivery can't be billed yet. Post that day's rate first.`;
+      `No fuel price has ever been posted, so this delivery can't be billed. Post a rate first.`;
     c.append(stop);
+  } else if (carried) {
+    const note = el('div', 'warn warn--sm');
+    note.style.margin = '8px 0';
+    note.textContent =
+      `No rate was posted on ${data.order.delivery_date}, so this bills at ${carried.rate_source_date}'s rate.`;
+    c.append(note);
   }
 
   const form = el('div', 'ops-form');

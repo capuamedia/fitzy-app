@@ -19,7 +19,7 @@
  *      caller must confirm explicitly rather than have it waved through.
  */
 
-import { json, fail, requireOwner, fuelLineCents, centsToUsd } from '../../../../_shared/lib.js';
+import { json, fail, requireOwner, fuelLineCents, centsToUsd, effectiveRates } from '../../../../_shared/lib.js';
 
 // A fill above this multiple of the tank's capacity is treated as suspect.
 // Not blocked outright — a tank size can be wrong, or missing entirely.
@@ -50,23 +50,26 @@ export async function onRequestPost({ request, env, params }) {
     .bind(params.id)
     .all();
 
-  // The billing rate comes from the delivery date, not from the order and
-  // not from today. Settling a Tuesday delivery on Wednesday still bills
-  // Tuesday's posted rate.
-  const { results: dayRates } = await env.DB
-    .prepare('SELECT fuel_grade, price_mills FROM fuel_prices WHERE effective_date = ?')
-    .bind(order.delivery_date)
-    .all();
-  const rateFor = Object.fromEntries(dayRates.map((r) => [r.fuel_grade, r.price_mills]));
+  // The billing rate comes from the delivery date, not from today. Settling
+  // a Tuesday delivery on Wednesday still bills Tuesday's rate. If nothing
+  // was posted that morning, the last posted rate carries forward — the
+  // business does not stop because Justin overslept — and the source date
+  // is recorded on the order so the carry is auditable later.
+  const rateFor = await effectiveRates(env.DB, order.delivery_date);
 
   const missing = [...new Set(vehicles.map((v) => v.fuel_grade))].filter((g) => !rateFor[g]);
   if (missing.length) {
     return fail(
-      `No ${missing.join(' or ')} price was posted for ${order.delivery_date}, ` +
-      `so this delivery cannot be billed. Post that day's rate first.`,
+      `No ${missing.join(' or ')} price has ever been posted, so there is ` +
+      `nothing to bill at. Post a rate first.`,
       409
     );
   }
+
+  // The oldest rate in play decides what the order records as its source.
+  const sourceDate = Object.values(rateFor)
+    .map((r) => r.source_date)
+    .sort()[0];
 
   const entries = body.gallons;
   if (!entries || typeof entries !== 'object') return fail('Expected gallons per vehicle');
@@ -96,7 +99,8 @@ export async function onRequestPost({ request, env, params }) {
       });
     }
 
-    const billedMills = rateFor[v.fuel_grade];
+    const rate = rateFor[v.fuel_grade];
+    const billedMills = rate.mills;
     const cents = fuelLineCents(gallons, billedMills);
     fuelTotal += cents;
     lines.push({
@@ -109,6 +113,8 @@ export async function onRequestPost({ request, env, params }) {
       // Surfaced so the receipt can say "quoted $4.899, billed $4.949"
       // rather than quietly charging a different number.
       rate_changed: billedMills !== v.quoted_price_mills,
+      rate_source_date: rate.source_date,
+      rate_carried_forward: rate.carried_forward,
       line_total_cents: cents,
       line_total: centsToUsd(cents),
     });
@@ -148,12 +154,13 @@ export async function onRequestPost({ request, env, params }) {
       .prepare(
         `UPDATE orders
             SET fuel_total_cents = ?,
+                fuel_rate_source_date = ?,
                 settlement_method = ?,
                 status = CASE WHEN status = 'delivered' THEN status ELSE 'delivered' END,
                 delivered_at = COALESCE(delivered_at, datetime('now'))
           WHERE id = ?`
       )
-      .bind(fuelTotal, settlement, params.id)
+      .bind(fuelTotal, sourceDate, settlement, params.id)
   );
 
   await env.DB.batch(statements);
@@ -165,6 +172,8 @@ export async function onRequestPost({ request, env, params }) {
     fuel_total: centsToUsd(fuelTotal),
     due_at_booking: centsToUsd(order.booking_total_cents),
     settlement,
+    rate_source_date: sourceDate,
+    rate_carried_forward: sourceDate !== order.delivery_date,
     // Deliberately no combined total. The two charges are separate events
     // on the customer's statement and are never shown summed.
     settled_unusual: suspect.length > 0,

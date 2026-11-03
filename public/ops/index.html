@@ -135,9 +135,17 @@ async function load() {
     const pr = await fetch('/api/ops/fuel-prices');
     if (pr.ok) {
       const prices = await pr.json();
-      if (!prices.complete) {
-        const box = alertBox('stop', "Today's prices aren't posted",
-          'Customers cannot book until every grade has a rate.');
+      const st = prices.staleness || {};
+      if (st.level && st.level !== 'fresh') {
+        const src = Object.values(prices.in_force || {})[0]?.source_date;
+        const box = st.level === 'missing'
+          ? alertBox('stop', "No prices posted",
+              'Nothing has ever been posted for one or more grades, so customers cannot book.')
+          : st.level === 'stale'
+            ? alertBox('stop', `Running on prices from ${fmtDate(src)}`,
+                `${st.days} days old. If fuel has moved, you are absorbing it on every fill.`)
+            : alertBox('warn', "Using yesterday's prices",
+                `Nothing posted today, so ${fmtDate(src)}'s rates are carrying forward.`);
         const link = el('a', 'textlink', 'Post prices now →');
         link.href = '/ops/pricing.html';
         link.style.display = 'inline-block';

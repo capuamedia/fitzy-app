@@ -123,3 +123,70 @@ export async function requireOwner(request, db) {
 }
 
 export const newId = () => crypto.randomUUID();
+
+/* --- fuel rates -----------------------------------------------------------
+ * The rate in force for a given date.
+ *
+ * Justin posts a rate each morning. When he doesn't, the last posted rate
+ * carries forward rather than the business stopping — a one-man operation
+ * cannot have bookings blocked because he overslept.
+ *
+ * The trade is that a carried rate is a stale rate, and staleness only ever
+ * costs Justin money: if gas rose and nobody noticed, he sells below his own
+ * cost on every fill. So carry-forward is never silent. Every caller gets
+ * the date the rate actually came from and how old it is, and the ops
+ * screens escalate as that number grows.
+ * ------------------------------------------------------------------------- */
+
+const GRADES = ['87', '91', 'diesel'];
+
+/** Days between two 'YYYY-MM-DD' strings. */
+export function daysBetween(fromIso, toIso) {
+  const a = Date.UTC(...fromIso.split('-').map((n, i) => (i === 1 ? +n - 1 : +n)));
+  const b = Date.UTC(...toIso.split('-').map((n, i) => (i === 1 ? +n - 1 : +n)));
+  return Math.round((b - a) / 86400000);
+}
+
+/**
+ * Rates in force on `date`, per grade:
+ *   { '87': { mills, source_date, carried_forward, days_stale }, ... }
+ * A grade with no rate ever posted is absent — there is nothing to carry.
+ */
+export async function effectiveRates(db, date) {
+  const { results } = await db
+    .prepare(
+      `SELECT fuel_grade, price_mills, effective_date
+         FROM fuel_prices
+        WHERE effective_date <= ?
+          AND effective_date = (
+              SELECT MAX(effective_date) FROM fuel_prices f2
+               WHERE f2.fuel_grade = fuel_prices.fuel_grade
+                 AND f2.effective_date <= ?)`
+    )
+    .bind(date, date)
+    .all();
+
+  const out = {};
+  for (const r of results) {
+    const stale = daysBetween(r.effective_date, date);
+    out[r.fuel_grade] = {
+      mills: r.price_mills,
+      source_date: r.effective_date,
+      carried_forward: stale > 0,
+      days_stale: stale,
+    };
+  }
+  return out;
+}
+
+/** How loudly the ops screens should complain about a carried rate. */
+export function staleness(rates) {
+  const vals = GRADES.map((g) => rates[g]).filter(Boolean);
+  if (vals.length < GRADES.length) return { level: 'missing', days: null };
+  const days = Math.max(...vals.map((r) => r.days_stale));
+  if (days === 0) return { level: 'fresh', days: 0 };
+  if (days === 1) return { level: 'carried', days };
+  return { level: 'stale', days };
+}
+
+export { GRADES };

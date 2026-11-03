@@ -13,9 +13,8 @@
 
 import {
   json, fail, requireOwner, serviceDate, millsToUsd, getSettings,
+  effectiveRates, staleness, GRADES,
 } from '../../_shared/lib.js';
-
-const GRADES = ['87', '91', 'diesel'];
 
 // A rate outside this range is almost certainly a typo — a decimal in the
 // wrong place turns $4.899 into $48.99 and bills a customer ten times over.
@@ -58,6 +57,9 @@ export async function onRequestGet({ request, env }) {
     .bind(date)
     .all();
 
+  // What customers are actually being quoted right now: today's posted
+  // rates, or the last posted rates carried forward.
+  const inForce = await effectiveRates(env.DB, date);
   const settings = await getSettings(env.DB, ['fuel_price_post_by']);
 
   return json({
@@ -65,6 +67,10 @@ export async function onRequestGet({ request, env }) {
     grades: GRADES,
     posted,
     complete: GRADES.every((g) => posted[g]),
+    in_force: Object.fromEntries(
+      Object.entries(inForce).map(([g, r]) => [g, { ...r, display: millsToUsd(r.mills) }])
+    ),
+    staleness: staleness(inForce),
     previous: Object.fromEntries(
       prev.map((r) => [r.fuel_grade, { mills: r.price_mills, date: r.effective_date }])
     ),
