@@ -1,0 +1,12 @@
+# Text files are normalised to LF in the repo; this machine checks out with
+# core.autocrlf=true. Binary assets must never be touched by that.
+* text=auto
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
