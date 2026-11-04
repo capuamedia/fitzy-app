@@ -1,0 +1,15 @@
+{
+  "name": "Fitzy Mobile Fueling",
+  "short_name": "Fitzy",
+  "description": "We bring the fuel to you.",
+  "start_url": "/app/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0C1626",
+  "theme_color": "#0C1626",
+  "icons": [
+    { "src": "/assets/icons/icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
