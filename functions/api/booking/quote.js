@@ -111,7 +111,8 @@ export async function onRequestPost({ request, env }) {
     rates: {
       quoted_for_date: rates.quoted_for_date,
       bills_on_date: rates.bills_on_date,
-      rate_is_final: rates.rate_is_final,
+      same_day: rates.same_day,
+      rate_title: rates.rate_title,
       rate_note: rates.rate_note,
       staleness: rates.stale,
     },

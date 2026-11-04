@@ -368,9 +368,9 @@ function stepDate(host) {
   if (state.delivery_date) {
     const note = el('p', 'help');
     note.style.padding = '10px 18px 0';
-    note.textContent = state.quote?.rates?.rate_is_final
-      ? "Fuel is charged at today's posted rate."
-      : 'Fuel is charged at the rate posted on your delivery day.';
+    note.textContent = state.quote?.rates?.same_day
+      ? "Fuel is charged on the gallons delivered, at that day's posted rate."
+      : 'Fuel is charged at the rate posted on your delivery day, not today\'s.';
     host.append(note);
   }
 
@@ -530,6 +530,15 @@ function stepReview(host) {
   total.append(el('span', null, 'Total today'), el('span', null, q.charges.now_total));
   now.append(total);
 
+  // Directly under the total, so "Total today" cannot be read as the total
+  // cost of the service.
+  if (q.charges.now_note) {
+    const sub = el('p', 'help');
+    sub.style.padding = '2px 0 0';
+    sub.textContent = q.charges.now_note;
+    now.append(sub);
+  }
+
   const later = el('div', 'charges__later');
   const laterHead = el('div', 'charges__head');
   laterHead.append(el('span', 'label label--ink', 'Charged after delivery'),
@@ -553,15 +562,15 @@ function stepReview(host) {
   charges.append(now, later);
   host.append(charges);
 
-  // The replacement for the old "RATE LOCKED" pill, which became a false
-  // claim when we moved to billing on the delivery date's rate.
-  if (!q.rates.rate_is_final) {
-    const warn = el('div', 'warn');
-    warn.style.marginTop = '14px';
-    warn.append(el('div', 'warn__title', 'Fuel price may move'));
-    warn.append(document.createTextNode(q.rates.rate_note));
-    host.append(warn);
-  }
+  // Shown on EVERY booking, not just future-dated ones. Even same-day, the
+  // charge is rate x gallons and the gallons are unknown until the nozzle
+  // clicks off — so there is no booking where the fuel cost is settled, and
+  // a same-day customer seeing nothing here would reasonably assume it was.
+  const warn = el('div', 'warn');
+  warn.style.marginTop = '14px';
+  warn.append(el('div', 'warn__title', q.rates.rate_title));
+  warn.append(document.createTextNode(q.rates.rate_note));
+  host.append(warn);
 
   const notes = el('div', 'field');
   notes.style.marginTop = '16px';

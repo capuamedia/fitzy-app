@@ -162,11 +162,24 @@ export async function ratesFor(db, deliveryDate, settings) {
     quoted_for_date: today,
     stale,
     bills_on_date: deliveryDate,
-    rate_is_final: isToday,
+    same_day: isToday,
+
+    // Deliberately NOT "today's rate is what you'll be charged", even for a
+    // same-day booking. Posting a rate upserts on (effective_date, grade),
+    // so Justin can re-post today's rate this afternoon — that sentence is
+    // a promise the system can break.
+    //
+    // Nothing here is ever final at booking anyway: the charge is rate ×
+    // gallons, and the gallons are not known until the nozzle clicks off.
+    // So every booking gets this card, with the wording that fits its case
+    // rather than one case getting silence.
+    rate_title: isToday ? "Your fuel charge isn't set yet" : 'Fuel price may change',
     rate_note: isToday
-      ? "This is today's posted rate, and it's what you'll be charged."
-      : `Fuel is charged at the rate posted on your delivery day, not today's. `
-        + `Today's is shown so you know roughly where it sits.`,
+      ? 'Fuel is charged after we fill, on the gallons actually delivered at '
+        + "that day's posted rate. Today's rate is shown so you can work out "
+        + 'roughly what to expect.'
+      : "Fuel is charged at the rate posted on your delivery day, not today's. "
+        + "Today's is shown so you know roughly where it sits.",
   };
 }
 
@@ -349,14 +362,17 @@ export function chargeLines(price, rates) {
   return {
     now,
     now_total: centsToUsd(price.booking_total_cents),
+    // Sits directly under the total so "Total today" can never be read as
+    // the total cost of the service.
+    now_note: 'Fuel is charged separately, after delivery.',
     later: {
       label: 'Fuel',
       // Never a number. Gallons are not known until the nozzle clicks off,
       // and the rate is the delivery day's.
       amount: 'After delivery',
-      note: rates.rate_is_final
-        ? `At today's posted rate, on the gallons actually delivered.`
-        : `At the rate posted on your delivery day, on the gallons actually delivered.`,
+      note: rates.same_day
+        ? 'On the gallons actually delivered, at that day\'s posted rate.'
+        : 'On the gallons actually delivered, at the rate posted on your delivery day.',
       // effectiveRates returns {grade: {mills, source_date, carried_forward,
       // days_stale}}, not a bare number. carried_forward matters: it means
       // no rate was posted that morning and the last one is standing in.
