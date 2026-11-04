@@ -161,10 +161,19 @@ function renderConfirmAhead() {
   const ahead = schedule.to_confirm.filter((o) => o.delivery_date !== viewing);
   if (!ahead.length) return;
 
+  // The header counts EVERYTHING unconfirmed, then says where it is. The
+  // earlier version counted only the other-day ones, which read as a total
+  // and quietly disagreed with the run sheet below.
+  const onThisDay = schedule.to_confirm.filter((o) => o.delivery_date === viewing).length;
+  const total = schedule.to_confirm.length;
+
   const c = el('div', 'card');
-  c.append(el('div', 'label', `Waiting on you · ${ahead.length} to confirm`));
+  c.append(el('div', 'label', `To confirm · ${total}`));
   c.append(el('p', 'ops-field__hint',
-    'Bookings on other days that haven\'t been confirmed yet.'));
+    `${ahead.length} on other days` +
+    (onThisDay
+      ? `, and ${onThisDay} on the day you're looking at — ${onThisDay === 1 ? 'that one is' : 'those are'} in the list below.`
+      : '.')));
 
   for (const o of ahead.slice(0, 8)) {
     const row = el('a', 'card__row');
