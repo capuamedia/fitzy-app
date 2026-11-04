@@ -43,7 +43,8 @@ INSERT INTO vehicles (id, user_id, year, make, model, color, plate, fuel_grade, 
   ('demo-v3', 'demo-u2', 2019, 'Ram',       '2500',       'Black',  '7XPL443', 'diesel', 31.0, 'large',     1),
   ('demo-v4', 'demo-u3', 2023, 'BMW',       'X5',         'White',  '9CCV118', '91',     21.9, 'standard',  1),
   ('demo-v5', 'demo-u4', 2017, 'Tiffin',    'Allegro',    'Tan',    'MH44210', 'diesel', 90.0, 'motorhome', 1),
-  ('demo-v6', 'demo-u4', 2021, 'Honda',     'CR-V',       'Blue',   '8DWQ372', '87',     14.0, 'standard',  0);
+  ('demo-v6', 'demo-u4', 2021, 'Honda',     'CR-V',       'Blue',   '8DWQ372', '87',     14.0, 'standard',  0),
+  ('demo-v7', 'demo-u1', 2018, 'Toyota',    'Tacoma',     'Grey',   '7MNB604', '87',     21.1, 'standard',  0);
 
 -- Spread across zones so the pricing differences are visible on screen.
 INSERT INTO locations (id, user_id, label, address_line1, city, zip, lat, lng, gate_code, parking_notes, zone_id, geocoded_at, is_default) VALUES
@@ -145,13 +146,19 @@ VALUES ('demo-o6', 'FZ-20316', 'demo-u1', 'demo-l1', 2, 'demo-m1',
 INSERT INTO order_vehicles (order_id, vehicle_id, vehicle_snapshot, fuel_grade, quoted_price_mills) VALUES
   ('demo-o6', 'demo-v1', '{"year":2022,"make":"Toyota","model":"Highlander"}', '87', 4899);
 
--- Four days out, unconfirmed. Three vehicles, so the +$10 add-on appears.
-INSERT INTO orders (id, invoice_number, user_id, location_id, zone_id,
+-- Four days out, unconfirmed. A MEMBER with three vehicles on one visit:
+-- the plan covers the visit and the first two vehicles, the third is +$10.
+-- This is the case worth having in the demo, because "members pay the extra
+-- vehicle fee too" is a rule Justin confirmed and would otherwise never see
+-- on screen. Delivery fee is $0 — the plan covers it.
+INSERT INTO orders (id, invoice_number, user_id, location_id, zone_id, membership_id,
                     status, delivery_date, window_start, window_end, address_snapshot,
-                    delivery_fee_cents, extra_vehicle_cents, tip_cents, booking_total_cents)
-VALUES ('demo-o7', 'FZ-20317', 'demo-u4', 'demo-l4', 4,
+                    parking_notes, delivery_fee_cents, extra_vehicle_cents, tip_cents, booking_total_cents)
+VALUES ('demo-o7', 'FZ-20317', 'demo-u1', 'demo-l1', 2, 'demo-m1',
         'scheduled', date('now','-8 hours','+4 days'), '09:00', '13:00',
-        '5400 Kanan Rd, Agoura Hills, CA 91301', 3999, 1000, 1000, 5999);
+        '1455 Lynn Rd, Thousand Oaks, CA 91360',
+        'Three this time — the Tacoma is on the street', 0, 1000, 800, 1800);
 INSERT INTO order_vehicles (order_id, vehicle_id, vehicle_snapshot, fuel_grade, quoted_price_mills, is_extra_vehicle) VALUES
-  ('demo-o7', 'demo-v6', '{"year":2021,"make":"Honda","model":"CR-V"}',     '87',     4899, 0),
-  ('demo-o7', 'demo-v5', '{"year":2017,"make":"Tiffin","model":"Allegro"}', 'diesel', 5149, 0);
+  ('demo-o7', 'demo-v1', '{"year":2022,"make":"Toyota","model":"Highlander","color":"Silver","plate":"9GHK221"}', '87', 4899, 0),
+  ('demo-o7', 'demo-v2', '{"year":2020,"make":"Subaru","model":"Outback","color":"Green","plate":"8TRM905"}',    '87', 4899, 0),
+  ('demo-o7', 'demo-v7', '{"year":2018,"make":"Toyota","model":"Tacoma","color":"Grey","plate":"7MNB604"}',      '87', 4899, 1);
