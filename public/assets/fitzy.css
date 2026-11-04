@@ -99,10 +99,15 @@ a:hover { color: var(--amber); }
   padding: 62px 24px 18px;
   z-index: 3;
 }
+/* The badge is a transparent PNG. Height is fixed and width follows the
+   image's own aspect ratio, so dropping in a differently-proportioned file
+   never stretches it. It is drawn at 68px here and 108px on the splash, so
+   the source wants to be about 350px tall to stay sharp on a 3x phone. */
 .hdr__logo {
   display: block;
   margin: 0 auto;
   height: 68px;
+  width: auto;
   filter: drop-shadow(0 3px 7px rgba(0, 0, 0, 0.5));
 }
 .hdr__back {

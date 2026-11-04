@@ -51,7 +51,7 @@
   padding: 40px 32px calc(40px + env(safe-area-inset-bottom));
   text-align: center;
 }
-.splash__logo { height: 108px; filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.55)); }
+.splash__logo { height: 108px; width: auto; filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.55)); }
 .splash__tag {
   font: 700 14px 'Barlow', sans-serif;
   letter-spacing: 3px;
