@@ -1,14 +1,35 @@
 -- Fitzy — DEVELOPMENT seed. Local use only.
 --
--- Never run this against the remote database. It creates a signed-in owner
--- session with a fixed, published token, which would be an open door in
--- production. The /api/dev/login route that uses it refuses to run unless
--- ENVIRONMENT is "development".
+-- Never run this against the remote database. It creates an owner account
+-- with Justin's real phone number — on local that is harmless, but on the
+-- remote it would be a live account reachable by a real SMS code.
 --
---   npm run db:reset:local     runs 001, 002 and this file
---   npm run db:migrate:remote  runs 001 and 002 only
+--   npm run db:reset:local     applies migrations, then config, then this
+--   npm run db:migrate:remote  migrations only
+--   npm run db:seed:remote     config only
+--
+-- Re-runnable: it clears its own rows first. Migrations no longer drop and
+-- recreate the tables, so a seed that only INSERTed would fail on the
+-- second run.
+--
+-- DATES: SQLite's date('now') is UTC, and the app asks for "today" in
+-- America/Los_Angeles. After 4pm Pacific those are different days, and
+-- seeded orders would land on tomorrow's queue — invisible. The -8 hours
+-- below keeps the seed on the same day the app thinks it is. (During
+-- daylight saving the rollover is an hour early; it is sample data, and
+-- SQLite has no IANA timezones.)
 
--- Justin — the owner. is_owner = 1 is what gates the ops dashboard.
+-- Clear anything this file created on a previous run. Orders first: the
+-- foreign keys cascade from there.
+DELETE FROM orders WHERE id LIKE 'dev-%';
+DELETE FROM memberships WHERE id LIKE 'dev-%';
+DELETE FROM locations WHERE id LIKE 'dev-%';
+DELETE FROM vehicles WHERE id LIKE 'dev-%';
+DELETE FROM sessions WHERE user_id LIKE 'dev-%';
+DELETE FROM otp_codes WHERE phone IN ('+18056303805', '+18055551133');
+DELETE FROM fuel_prices WHERE posted_by_user_id LIKE 'dev-%';
+DELETE FROM users WHERE id LIKE 'dev-%';
+
 INSERT INTO users (id, first_name, last_name, phone, email, is_owner,
                    sms_service_consent, sms_consent_at)
 VALUES ('dev-owner', 'Justin', 'Fitzgerald', '+18056303805',
@@ -34,14 +55,14 @@ VALUES ('dev-l1', 'dev-cust', 'Home', '1420 Lynn Rd', 'Thousand Oaks', '91360',
 INSERT INTO memberships (id, user_id, plan_id, zone_id, price_cents, visits_included,
                          cycle_start, cycle_end)
 VALUES ('dev-m1', 'dev-cust', 1, 2, 5999, 4,
-        date('now', '-22 days'),
-        date('now', '-22 days', '+1 month', '-1 day'));
+        date('now', '-8 hours', '-22 days'),
+        date('now', '-8 hours', '-22 days', '+1 month', '-1 day'));
 
 -- Today's posted rates, so booking is not blocked on a fresh database.
 INSERT INTO fuel_prices (effective_date, fuel_grade, price_mills, posted_by_user_id) VALUES
-  (date('now'), '87',     4899, 'dev-owner'),
-  (date('now'), '91',     5299, 'dev-owner'),
-  (date('now'), 'diesel', 5149, 'dev-owner');
+  (date('now', '-8 hours'), '87',     4899, 'dev-owner'),
+  (date('now', '-8 hours'), '91',     5299, 'dev-owner'),
+  (date('now', '-8 hours'), 'diesel', 5149, 'dev-owner');
 
 -- Three orders covering the states the queue has to render:
 -- one en route, one delivered but unsettled, one waiting to be confirmed.
@@ -51,7 +72,7 @@ INSERT INTO orders (id, invoice_number, user_id, location_id, zone_id, membershi
                     address_snapshot, gate_code_snapshot, parking_notes,
                     delivery_fee_cents, tip_cents, booking_total_cents)
 VALUES ('dev-o1', 'FZ-10428', 'dev-cust', 'dev-l1', 2, 'dev-m1',
-        'en_route', date('now'), '09:00', '13:00',
+        'en_route', date('now', '-8 hours'), '09:00', '13:00',
         '1420 Lynn Rd, Thousand Oaks, CA 91360', '4417',
         'Blue Pilot in the second driveway spot',
         0, 800, 800);
@@ -66,7 +87,7 @@ INSERT INTO orders (id, invoice_number, user_id, location_id, zone_id,
                     address_snapshot, delivery_fee_cents, tip_cents,
                     booking_total_cents, delivered_at)
 VALUES ('dev-o2', 'FZ-10427', 'dev-cust', 'dev-l1', 2,
-        'delivered', date('now'), '06:30', '10:30',
+        'delivered', date('now', '-8 hours'), '06:30', '10:30',
         '1420 Lynn Rd, Thousand Oaks, CA 91360', 2499, 500, 2999, datetime('now'));
 
 INSERT INTO order_vehicles (order_id, vehicle_id, vehicle_snapshot, fuel_grade, quoted_price_mills)
@@ -77,7 +98,7 @@ INSERT INTO orders (id, invoice_number, user_id, location_id, zone_id,
                     address_snapshot, gate_code_snapshot,
                     delivery_fee_cents, extra_vehicle_cents, tip_cents, booking_total_cents)
 VALUES ('dev-o3', 'FZ-10429', 'dev-cust', 'dev-l1', 2,
-        'scheduled', date('now'), '13:00', '17:00',
+        'scheduled', date('now', '-8 hours'), '13:00', '17:00',
         '1420 Lynn Rd, Thousand Oaks, CA 91360', '4417',
         2499, 1000, 1000, 4499);
 
