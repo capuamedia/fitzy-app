@@ -51,7 +51,15 @@
   padding: 40px 32px calc(40px + env(safe-area-inset-bottom));
   text-align: center;
 }
-.splash__logo { height: 108px; width: auto; filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.55)); }
+/* The badge is wide (about 2.3:1) and carries small type inside the
+   artwork, so it is sized by width here rather than height — at 108px tall
+   it was a stamp in the middle of an empty screen and its own tagline was
+   unreadable. */
+.splash__logo {
+  width: min(84%, 340px);
+  height: auto;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.55));
+}
 .splash__tag {
   font: 700 14px 'Barlow', sans-serif;
   letter-spacing: 3px;
