@@ -1,8 +1,14 @@
 -- Fitzy — DEVELOPMENT seed. Local use only.
 --
--- Never run this against the remote database. It creates an owner account
--- with Justin's real phone number — on local that is harmless, but on the
--- remote it would be a live account reachable by a real SMS code.
+-- Never run this against the remote database.
+--
+-- Phone numbers here are fictional 555 numbers on purpose. The owner's real
+-- number lives only in the remote database, created by its own migration.
+-- Keeping it out of this file means a stray --remote inserts a harmless
+-- fake account instead of colliding with the real owner, and keeps a real
+-- person's number out of git history.
+--
+--   Sign in locally with 555-555-0101 (owner) — the code appears on screen.
 --
 --   npm run db:reset:local     applies migrations, then config, then this
 --   npm run db:migrate:remote  migrations only
@@ -26,18 +32,18 @@ DELETE FROM memberships WHERE id LIKE 'dev-%';
 DELETE FROM locations WHERE id LIKE 'dev-%';
 DELETE FROM vehicles WHERE id LIKE 'dev-%';
 DELETE FROM sessions WHERE user_id LIKE 'dev-%';
-DELETE FROM otp_codes WHERE phone IN ('+18056303805', '+18055551133');
+DELETE FROM otp_codes WHERE phone IN ('+15555550101', '+15555550102');
 DELETE FROM fuel_prices WHERE posted_by_user_id LIKE 'dev-%';
 DELETE FROM users WHERE id LIKE 'dev-%';
 
 INSERT INTO users (id, first_name, last_name, phone, email, is_owner,
                    sms_service_consent, sms_consent_at)
-VALUES ('dev-owner', 'Justin', 'Fitzgerald', '+18056303805',
-        'justin@fitzyfuel.com', 1, 1, datetime('now'));
+VALUES ('dev-owner', 'Justin', 'Fitzgerald', '+15555550101',
+        'owner@example.test', 1, 1, datetime('now'));
 
 -- A sample customer with two vehicles and one saved location.
 INSERT INTO users (id, first_name, last_name, phone, email, sms_service_consent, sms_consent_at)
-VALUES ('dev-cust', 'Mike', 'Capua', '+18055551133', 'mike@capua.media', 1, datetime('now'));
+VALUES ('dev-cust', 'Mike', 'Capua', '+15555550102', 'customer@example.test', 1, datetime('now'));
 
 INSERT INTO vehicles (id, user_id, year, make, model, color, plate, fuel_grade, tank_gallons, vehicle_class, is_default) VALUES
   ('dev-v1', 'dev-cust', 2021, 'Honda', 'Pilot',  'Blue',  '8ABC123', '87',     19.5, 'standard', 1),

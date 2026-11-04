@@ -12,6 +12,7 @@ import { json, fail } from '../../_shared/lib.js';
 import {
   normalizePhone, maskPhone, sendLimits, issueCode, sendSms, CODE_TTL_MINUTES,
 } from '../../_shared/auth.js';
+import { accessDevCodeAllowed } from '../../_shared/access.js';
 
 export async function onRequestPost({ request, env }) {
   let body;
@@ -74,6 +75,18 @@ export async function onRequestPost({ request, env }) {
 
     if (env.ENVIRONMENT === 'development' && isLocalHost) {
       return json({ ...reply, dev_code: code, dev_note: 'SMS is not configured; code returned for local use only.' });
+    }
+
+    // TEMPORARY, remove with functions/_shared/access.js before launch.
+    // Lets the named people behind Cloudflare Access use the preview
+    // deployment while Twilio is pending. The Access JWT is verified in
+    // full — signature, audience, issuer, expiry — not merely present.
+    if (await accessDevCodeAllowed(request, env)) {
+      return json({
+        ...reply,
+        dev_code: code,
+        dev_note: 'SMS is not configured yet. This code is shown because you signed in through Cloudflare Access.',
+      });
     }
     if (sms.reason === 'not_configured') {
       return fail('Text messaging is not set up yet, so codes cannot be sent.', 503);
