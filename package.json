@@ -14,6 +14,10 @@
     "db:migrate:remote": "wrangler d1 migrations apply fitzy-db --remote",
     "db:seed:remote": "wrangler d1 execute fitzy-db --remote --file=./schema/002_seed_config.sql",
     "db:status": "wrangler d1 migrations list fitzy-db --remote",
+    "demo:seed:local": "wrangler d1 execute fitzy-db --local --file=./schema/demo/demo_seed.sql",
+    "demo:seed:remote": "wrangler d1 execute fitzy-db --remote --file=./schema/demo/demo_seed.sql",
+    "demo:clear:local": "wrangler d1 execute fitzy-db --local --file=./schema/demo/demo_teardown.sql",
+    "demo:clear:remote": "wrangler d1 execute fitzy-db --remote --file=./schema/demo/demo_teardown.sql",
     "r2:create": "wrangler r2 bucket create fitzy-photos",
     "deploy": "wrangler pages deploy public --project-name=fitzy-app"
   },
