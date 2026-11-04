@@ -334,3 +334,107 @@
 .done__title { font: 800 26px 'Barlow Condensed', 'Barlow', sans-serif; letter-spacing: .6px;
                text-transform: uppercase; color: var(--navy-ink); margin-top: 18px; }
 .done__body { font-size: 14.5px; line-height: 1.5; color: var(--text-dim); max-width: 300px; margin-top: 8px; text-wrap: pretty; }
+
+/* --- booking -----------------------------------------------------------------
+   The flow runs as one page with the dock pinned at the bottom, because the
+   running total is the thing people watch while they change their mind.
+   -------------------------------------------------------------------------- */
+
+/* The 14-day strip, scrolled horizontally. A month calendar pushes the
+   window list below the fold on a phone, and the next two weeks is the
+   whole bookable horizon anyway. */
+.datestrip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 24px 8px;
+  margin: 0 -24px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.datestrip::-webkit-scrollbar { display: none; }
+
+.dateday {
+  flex: 0 0 auto;
+  width: 62px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 0 9px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  cursor: pointer;
+  font-family: 'Barlow', sans-serif;
+  color: var(--text);
+}
+.dateday__dow { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); }
+.dateday__num { font-size: 20px; font-weight: 700; color: var(--navy-ink); line-height: 1.1; }
+.dateday__note { font-size: 10px; font-weight: 600; color: var(--text-muted); height: 12px; }
+.dateday.is-on { border: 2px solid var(--amber); background: var(--amber-pale); padding: 9px 0 8px; }
+.dateday.is-on .dateday__dow { color: var(--amber-ink); }
+.dateday.is-closed { background: #EFEDE8; border-color: #E4E1DA; cursor: not-allowed; }
+.dateday.is-closed .dateday__num,
+.dateday.is-closed .dateday__dow { opacity: .4; }
+
+/* --- tip ---------------------------------------------------------------------
+   Dollars, not percentages: a percentage of a delivery fee is a confusing
+   base, and the tip is for the person rather than the transaction size.
+   Nothing is preselected, including zero — the customer picks.
+   -------------------------------------------------------------------------- */
+
+.tips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.tip {
+  height: 52px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  font: 700 16px 'Barlow', sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: var(--navy-ink);
+  cursor: pointer;
+}
+.tip.is-on { border: 2px solid var(--amber); background: var(--amber-pale); color: var(--amber-ink); }
+
+/* --- selectable rows ---------------------------------------------------- */
+
+.pick { display: flex; flex-direction: column; gap: 9px; }
+.pick__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  min-height: 62px;
+  padding: 12px 18px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  cursor: pointer;
+  font-family: 'Barlow', sans-serif;
+  color: var(--text);
+}
+.pick__row.is-on { border: 2px solid var(--amber); background: var(--amber-pale); padding: 11px 17px; }
+.pick__row.is-off { background: #EFEDE8; border-color: #E4E1DA; cursor: not-allowed; }
+.pick__row.is-off .pick__title, .pick__row.is-off .pick__sub { opacity: .45; }
+.pick__main { flex: 1; min-width: 0; }
+.pick__title { font-weight: 700; font-size: 15.5px; color: var(--navy-ink); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pick__sub { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+.pick__right { flex: none; text-align: right; }
+
+/* A square box rather than a circle, so multi-select reads as different
+   from the single-choice rows above it. */
+.boxcheck {
+  flex: none; width: 24px; height: 24px; border-radius: 7px;
+  border: 2px solid var(--ring); background: var(--white);
+  display: flex; align-items: center; justify-content: center;
+}
+.boxcheck.is-on { border-color: var(--amber); background: var(--amber); }
+.boxcheck.is-on::after {
+  content: ''; width: 11px; height: 6px; margin-top: -3px;
+  border-left: 2.5px solid var(--navy); border-bottom: 2.5px solid var(--navy);
+  transform: rotate(-45deg);
+}

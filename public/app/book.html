@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C1626">
+<title>Book a fill-up · Fitzy</title>
+<link rel="icon" href="/assets/icons/icon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="/assets/icons/icon-16.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" href="/assets/icons/icon-apple-180.png">
+<link rel="manifest" href="/app.webmanifest" crossorigin="use-credentials">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="hdr">
+    <a class="hdr__back" href="/app/home.html" aria-label="Back" id="back" style="color:#fff;text-decoration:none">←</a>
+    <img class="hdr__logo" src="/assets/fitzy-badge.png" alt="Fitzy Mobile Fueling">
+  </header>
+
+  <div class="progress" style="padding:14px 24px 0">
+    <div class="progress__bars" id="bars"></div>
+    <div class="progress__label" id="step-label"></div>
+  </div>
+
+  <main class="app__body" id="body">
+    <h1 class="page-title" id="title">Where are we going?</h1>
+    <p class="page-sub" id="sub"></p>
+    <div id="step" style="margin-top:14px"></div>
+    <p class="btn-reason" id="error" hidden></p>
+  </main>
+
+  <!-- The running total stays pinned. People change their mind about a
+       third car or a tip, and the number they are watching while they do
+       it should not be a scroll away. -->
+  <footer class="dock">
+    <div class="dock__row">
+      <div class="dock__left">
+        <div class="dock__label" id="dock-label">Charged today</div>
+        <div class="dock__sub" id="dock-sub">Pick an address to start</div>
+      </div>
+      <div class="dock__right">
+        <span class="dock__delta" id="delta" hidden></span>
+        <span class="dock__amount is-muted" id="amount">—</span>
+      </div>
+    </div>
+    <button class="btn btn--primary is-disabled" id="next" disabled>Continue</button>
+  </footer>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+};
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+const STEPS = ['address', 'vehicles', 'date', 'window', 'tip', 'review'];
+const TITLES = {
+  address:  ['Where are we going?', 'Pick the address for this fill-up.'],
+  vehicles: ['Which vehicles?', ''],
+  date:     ['What day?', 'We take bookings two weeks out.'],
+  window:   ['What time?', 'We arrive inside the window you pick.'],
+  tip:      ['Add a tip?', 'It goes to the person doing the fill, not the company.'],
+  review:   ['Check it over', ''],
+};
+
+const state = {
+  step: 0,
+  locations: [],
+  vehicles: [],
+  days: [],
+  location_id: null,
+  vehicle_ids: [],
+  delivery_date: null,
+  window_start: null,
+  window_end: null,
+  tip_cents: null,      // null = not answered yet; 0 is a real answer
+  notes: '',
+  quote: null,
+  windows: null,
+};
+
+const err = (msg) => {
+  const e = $('error');
+  if (!msg) { e.hidden = true; return; }
+  e.textContent = msg;
+  e.hidden = false;
+};
+
+/* --- the dock --------------------------------------------------------------
+   The total only becomes real once there is enough to price. Until then it
+   shows a dash rather than $0.00, which would read as "this is free". */
+
+let lastTotalCents = null;
+
+function paintDock() {
+  const q = state.quote;
+  const amount = $('amount');
+
+  if (!q) {
+    amount.textContent = '—';
+    amount.classList.add('is-muted');
+    $('dock-sub').textContent = state.location_id ? 'Pick a vehicle' : 'Pick an address to start';
+    return;
+  }
+
+  amount.textContent = q.total;
+  amount.classList.remove('is-muted');
+
+  // Flash what just changed, so a fee that appeared because of the choice
+  // they made is visibly connected to that choice.
+  if (lastTotalCents != null && q.price.booking_total_cents !== lastTotalCents) {
+    const d = q.price.booking_total_cents - lastTotalCents;
+    const delta = $('delta');
+    delta.textContent = `${d > 0 ? '+' : '−'}$${Math.abs(d / 100).toFixed(2)}`;
+    delta.hidden = false;
+    clearTimeout(paintDock._t);
+    paintDock._t = setTimeout(() => { delta.hidden = true; }, 1800);
+  }
+  lastTotalCents = q.price.booking_total_cents;
+
+  const bits = [];
+  if (q.price.covered_by_plan) bits.push('Membership visit');
+  if (q.vehicles.length) bits.push(`${q.vehicles.length} vehicle${q.vehicles.length > 1 ? 's' : ''}`);
+  if (state.delivery_date) bits.push(dateLabel(state.delivery_date));
+  $('dock-sub').textContent = bits.join(' · ') || 'Fuel charged after delivery';
+}
+
+/* --- quoting ---------------------------------------------------------------
+   Every price comes from the server. Adding fees up in here would be a
+   second implementation of the price card, and this is the copy the
+   customer reads. */
+
+let quoteSeq = 0;
+
+async function requote() {
+  if (!state.location_id || !state.vehicle_ids.length) { state.quote = null; paintDock(); return; }
+  const seq = ++quoteSeq;
+  try {
+    const res = await fetch('/api/booking/quote', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        location_id: state.location_id,
+        vehicle_ids: state.vehicle_ids,
+        delivery_date: state.delivery_date,
+        tip_cents: state.tip_cents ?? 0,
+      }),
+    });
+    if (seq !== quoteSeq) return;           // a newer change already went out
+    const data = await res.json();
+    if (!res.ok) { err(data.error || 'Could not price that.'); state.quote = null; }
+    else { err(null); state.quote = data; }
+  } catch {
+    err('Network problem — the price may be out of date.');
+  }
+  paintDock();
+  render();
+}
+
+/* --- rendering -------------------------------------------------------------- */
+
+const dateLabel = (iso) => {
+  const [, m, d] = iso.split('-').map(Number);
+  return `${MONTHS[m - 1]} ${d}`;
+};
+const timeLabel = (hhmm) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  const s = h >= 12 ? 'pm' : 'am';
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return m ? `${hour}:${String(m).padStart(2, '0')}${s}` : `${hour}${s}`;
+};
+
+function paintProgress() {
+  const bars = $('bars');
+  bars.replaceChildren();
+  STEPS.forEach((_, i) => {
+    const b = el('i');
+    if (i <= state.step) b.classList.add('is-done');
+    bars.append(b);
+  });
+  $('step-label').textContent = `Step ${state.step + 1} of ${STEPS.length}`;
+  const [t, s] = TITLES[STEPS[state.step]];
+  $('title').textContent = t;
+  $('sub').textContent = s;
+  $('sub').hidden = !s;
+}
+
+function canContinue() {
+  switch (STEPS[state.step]) {
+    case 'address':  return Boolean(state.location_id);
+    case 'vehicles': return state.vehicle_ids.length > 0;
+    case 'date':     return Boolean(state.delivery_date);
+    case 'window':   return Boolean(state.window_start);
+    case 'tip':      return state.tip_cents !== null;
+    case 'review':   return Boolean(state.quote);
+    default:         return false;
+  }
+}
+
+function paintNext() {
+  const ok = canContinue();
+  const btn = $('next');
+  btn.disabled = !ok;
+  btn.classList.toggle('is-disabled', !ok);
+  btn.textContent = STEPS[state.step] === 'review' ? 'Confirm booking' : 'Continue';
+}
+
+function render() {
+  paintProgress();
+  const host = $('step');
+  host.replaceChildren();
+  ({ address: stepAddress, vehicles: stepVehicles, date: stepDate,
+     window: stepWindow, tip: stepTip, review: stepReview })[STEPS[state.step]](host);
+  paintNext();
+}
+
+/* --- step 1: address --------------------------------------------------------- */
+
+function stepAddress(host) {
+  const wrap = el('div', 'pick');
+  for (const l of state.locations) {
+    const row = el('button', 'pick__row');
+    row.type = 'button';
+    if (state.location_id === l.id) row.classList.add('is-on');
+    if (!l.serviceable) row.classList.add('is-off');
+
+    const radio = el('span', 'radio' + (state.location_id === l.id ? ' is-on' : ''));
+    const main = el('div', 'pick__main');
+    const title = el('div', 'pick__title');
+    title.append(el('span', null, l.label));
+    if (l.is_default) title.append(el('span', 'chip chip--default', 'Usual'));
+    main.append(title, el('div', 'pick__sub', l.one_line));
+
+    if (l.serviceable) {
+      const right = el('div', 'pick__right');
+      right.append(el('div', 'fee-pill', l.zone.per_visit));
+      row.append(radio, main, right);
+      row.addEventListener('click', () => {
+        state.location_id = l.id;
+        requote();
+        render();
+      });
+    } else {
+      main.append(el('div', 'pick__sub', `We don't deliver to ${l.zip} yet.`));
+      row.append(radio, main);
+      row.disabled = true;
+    }
+    wrap.append(row);
+  }
+
+  const add = el('a', 'textlink', 'Add another address');
+  add.href = '/app/location.html';
+  add.style.margin = '10px auto 0';
+  wrap.append(add);
+  host.append(wrap);
+}
+
+/* --- step 2: vehicles -------------------------------------------------------- */
+
+function stepVehicles(host) {
+  const q = state.quote;
+  const included = q?.price?.vehicles_included ?? 2;
+
+  const note = el('p', 'page-sub',
+    `The first ${included} are included. Each one after that is a small fee, and a motorhome has its own.`);
+  note.style.marginTop = '-4px';
+  host.append(note);
+
+  const wrap = el('div', 'pick');
+  wrap.style.marginTop = '12px';
+
+  let standardSeen = 0;
+  for (const v of state.vehicles) {
+    const on = state.vehicle_ids.includes(v.id);
+    const isRv = v.vehicle_class === 'motorhome';
+    if (on && !isRv) standardSeen += 1;
+
+    const row = el('button', 'pick__row' + (on ? ' is-on' : ''));
+    row.type = 'button';
+    row.append(el('span', 'boxcheck' + (on ? ' is-on' : '')));
+
+    const main = el('div', 'pick__main');
+    const title = el('div', 'pick__title');
+    title.append(el('span', null, v.display || `${v.make} ${v.model}`));
+    if (v.is_default) title.append(el('span', 'chip chip--default', 'Usual'));
+    main.append(title, el('div', 'pick__sub', v.fuel_label + (v.plate ? ` · ${v.plate}` : '')));
+    row.append(main);
+
+    // The fee shows on the row that causes it, at the moment it is caused —
+    // never discovered at Review.
+    if (on && q) {
+      let fee = null;
+      if (isRv) fee = q.price.motorhome_each_cents;
+      else if (standardSeen > included) fee = q.price.extra_vehicle_each_cents;
+      if (fee) {
+        const right = el('div', 'pick__right');
+        right.append(el('div', 'fee-pill', `+$${(fee / 100).toFixed(2)}`));
+        row.append(right);
+      }
+    }
+
+    row.addEventListener('click', () => {
+      state.vehicle_ids = on
+        ? state.vehicle_ids.filter((id) => id !== v.id)
+        : [...state.vehicle_ids, v.id];
+      requote();
+      render();
+    });
+    wrap.append(row);
+  }
+
+  const add = el('a', 'textlink', 'Add a vehicle');
+  add.href = '/app/vehicle.html';
+  add.style.margin = '10px auto 0';
+  wrap.append(add);
+  host.append(wrap);
+}
+
+/* --- step 3: date ------------------------------------------------------------ */
+
+function stepDate(host) {
+  const strip = el('div', 'datestrip');
+  for (const d of state.days) {
+    const [, m, dd] = d.date.split('-').map(Number);
+    const cell = el('button', 'dateday');
+    cell.type = 'button';
+    if (state.delivery_date === d.date) cell.classList.add('is-on');
+    if (!d.available) cell.classList.add('is-closed');
+
+    cell.append(
+      el('div', 'dateday__dow', d.is_today ? 'Today' : DOW[d.dow]),
+      el('div', 'dateday__num', String(dd)),
+      // A greyed-out day with no label makes people wonder whether it is
+      // broken. Say which kind of closed it is.
+      el('div', 'dateday__note',
+        !d.open ? 'Closed'
+        : !d.available ? 'Full'
+        : d.spots_left <= 2 ? `${d.spots_left} left` : '')
+    );
+
+    if (d.available) {
+      cell.addEventListener('click', async () => {
+        state.delivery_date = d.date;
+        state.window_start = null;
+        state.window_end = null;
+        state.windows = null;
+        requote();           // the rate note depends on the date
+        render();
+      });
+    } else {
+      cell.disabled = true;
+    }
+    strip.append(cell);
+  }
+  host.append(strip);
+
+  if (state.delivery_date) {
+    const note = el('p', 'help');
+    note.style.padding = '10px 18px 0';
+    note.textContent = state.quote?.rates?.rate_is_final
+      ? "Fuel is charged at today's posted rate."
+      : 'Fuel is charged at the rate posted on your delivery day.';
+    host.append(note);
+  }
+
+  const closedCount = state.days.filter((d) => !d.open).length;
+  if (closedCount && !state.days.some((d) => d.available)) {
+    const warn = el('div', 'warn');
+    warn.style.marginTop = '14px';
+    warn.append(el('div', 'warn__title', 'Nothing open right now'));
+    warn.append(document.createTextNode('Give us a call and we will sort something out.'));
+    host.append(warn);
+  }
+}
+
+/* --- step 4: window ---------------------------------------------------------- */
+
+async function loadWindows() {
+  state.windows = 'loading';
+  render();
+  try {
+    const res = await fetch(`/api/booking/availability?date=${state.delivery_date}`);
+    state.windows = res.ok ? await res.json() : { windows: [], open: false };
+  } catch {
+    state.windows = { windows: [], open: false, reason: 'error' };
+  }
+  render();
+}
+
+function stepWindow(host) {
+  if (state.windows === null) { loadWindows(); }
+  if (state.windows === null || state.windows === 'loading') {
+    host.append(el('div', 'help', 'Checking what is open…'));
+    return;
+  }
+
+  const wrap = el('div', 'pick');
+  for (const w of state.windows.windows ?? []) {
+    const on = state.window_start === w.start;
+    const row = el('button', 'pick__row' + (on ? ' is-on' : '') + (w.available ? '' : ' is-off'));
+    row.type = 'button';
+    row.append(el('span', 'radio' + (on ? ' is-on' : '')));
+
+    const main = el('div', 'pick__main');
+    main.append(el('div', 'pick__title', `${timeLabel(w.start)} – ${timeLabel(w.end)}`));
+    // Four distinct answers, not one "unavailable". Someone told a window
+    // is full tries another window; someone told "unavailable" leaves.
+    main.append(el('div', 'pick__sub',
+      w.reason === 'full' ? 'Fully booked'
+      : w.reason === 'too_soon' ? 'Too soon to book'
+      : w.show_scarcity ? `${w.spots_left} spot${w.spots_left > 1 ? 's' : ''} left`
+      : 'Available'));
+    row.append(main);
+
+    if (w.available) {
+      row.addEventListener('click', () => {
+        state.window_start = w.start;
+        state.window_end = w.end;
+        render();
+      });
+    } else {
+      row.disabled = true;
+    }
+    wrap.append(row);
+  }
+  host.append(wrap);
+}
+
+/* --- step 5: tip ------------------------------------------------------------- */
+
+function stepTip(host) {
+  const wrap = el('div', 'tips');
+  for (const cents of [0, 500, 1000, 1500]) {
+    const b = el('button', 'tip' + (state.tip_cents === cents ? ' is-on' : ''),
+      cents === 0 ? 'None' : `$${cents / 100}`);
+    b.type = 'button';
+    b.addEventListener('click', () => { state.tip_cents = cents; requote(); render(); });
+    wrap.append(b);
+  }
+  host.append(wrap);
+
+  const custom = el('div', 'field');
+  custom.style.marginTop = '14px';
+  const label = el('label', 'field-label', 'Or another amount');
+  const input = el('input', 'input');
+  input.id = 'tip-custom';
+  input.inputMode = 'decimal';
+  input.placeholder = '$0.00';
+  if (state.tip_cents != null && ![0, 500, 1000, 1500].includes(state.tip_cents)) {
+    input.value = `$${(state.tip_cents / 100).toFixed(2)}`;
+  }
+  input.addEventListener('input', (e) => {
+    const digits = e.target.value.replace(/[^\d.]/g, '');
+    const value = Math.round((Number(digits) || 0) * 100);
+    state.tip_cents = Math.min(value, 20000);
+    for (const b of wrap.children) b.classList.remove('is-on');
+    clearTimeout(stepTip._t);
+    stepTip._t = setTimeout(() => { requote(); paintNext(); }, 350);
+    paintNext();
+  });
+  custom.append(label, input);
+  host.append(custom);
+
+  const note = el('p', 'help');
+  note.style.padding = '12px 18px 0';
+  note.textContent = 'Tips are charged with the booking, and refunded in full if you cancel in time.';
+  host.append(note);
+}
+
+/* --- step 6: review ---------------------------------------------------------- */
+
+function stepReview(host) {
+  const q = state.quote;
+  if (!q) { host.append(el('div', 'help', 'Pricing…')); return; }
+
+  const loc = state.locations.find((l) => l.id === state.location_id);
+
+  const summary = el('div', 'card card--flush');
+  const rows = [
+    ['Address', `${loc.label} · ${loc.one_line}`],
+    ['Vehicles', q.vehicles.map((v) => v.display).join(', ')],
+    ['When', `${dateLabel(state.delivery_date)} · ${timeLabel(state.window_start)} – ${timeLabel(state.window_end)}`],
+  ];
+  rows.forEach(([k, v], i) => {
+    const row = el('div', 'card__row');
+    row.style.display = 'flex';
+    row.style.justifyContent = 'space-between';
+    row.style.gap = '14px';
+    const left = el('span', 'label label--ink', k);
+    const right = el('span', null, v);
+    right.style.cssText = 'font-size:13.5px;text-align:right;flex:1';
+    row.append(left, right);
+    summary.append(row);
+  });
+  host.append(summary);
+
+  /* The charge card, split by when money actually moves. */
+  const charges = el('div', 'charges');
+  charges.style.marginTop = '14px';
+
+  const now = el('div', 'charges__now');
+  const nowHead = el('div', 'charges__head');
+  nowHead.append(el('span', 'label label--ink', 'Charged today'),
+                 el('span', 'charge-tag charge-tag--now', 'Now'));
+  now.append(nowHead);
+
+  for (const line of q.charges.now) {
+    const row = el('div', 'line' + (line.zero ? ' line--muted' : ''));
+    const left = el('span', null, line.label);
+    if (line.note) {
+      const sub = el('small', null, line.note);
+      sub.style.cssText = 'display:block;color:var(--text-muted);font-size:12px;margin-top:1px';
+      left.append(sub);
+    }
+    row.append(left, el('span', null, line.amount));
+    now.append(row);
+  }
+  const total = el('div', 'line line--total line--big');
+  total.append(el('span', null, 'Total today'), el('span', null, q.charges.now_total));
+  now.append(total);
+
+  const later = el('div', 'charges__later');
+  const laterHead = el('div', 'charges__head');
+  laterHead.append(el('span', 'label label--ink', 'Charged after delivery'),
+                   el('span', 'charge-tag charge-tag--later', 'Later'));
+  later.append(laterHead);
+
+  const fuelRow = el('div', 'line');
+  fuelRow.append(el('span', null, 'Fuel'), el('span', null, q.charges.later.amount));
+  later.append(fuelRow);
+  const fuelNote = el('p', 'help');
+  fuelNote.style.padding = '2px 0 8px';
+  fuelNote.textContent = q.charges.later.note;
+  later.append(fuelNote);
+
+  for (const [grade, r] of Object.entries(q.charges.later.rates)) {
+    const row = el('div', 'line line--rate');
+    const name = grade === '87' ? 'Regular' : grade === '91' ? 'Premium' : 'Diesel';
+    row.append(el('span', null, `${name} today`), el('span', null, `${r.rate}/gal`));
+    later.append(row);
+  }
+  charges.append(now, later);
+  host.append(charges);
+
+  // The replacement for the old "RATE LOCKED" pill, which became a false
+  // claim when we moved to billing on the delivery date's rate.
+  if (!q.rates.rate_is_final) {
+    const warn = el('div', 'warn');
+    warn.style.marginTop = '14px';
+    warn.append(el('div', 'warn__title', 'Fuel price may move'));
+    warn.append(document.createTextNode(q.rates.rate_note));
+    host.append(warn);
+  }
+
+  const notes = el('div', 'field');
+  notes.style.marginTop = '16px';
+  const nl = el('label', 'field-label', 'Anything we should know for this visit?');
+  const ta = el('textarea', 'input input--area');
+  ta.maxLength = 400;
+  ta.placeholder = loc.parking_notes
+    ? `We already have: "${loc.parking_notes}"`
+    : 'Gate code changed, car is round the back, that sort of thing.';
+  ta.value = state.notes;
+  ta.addEventListener('input', (e) => { state.notes = e.target.value; });
+  notes.append(nl, ta);
+  host.append(notes);
+
+  const remind = el('div', 'warn warn--sm');
+  remind.style.marginTop = '14px';
+  remind.append(el('div', 'warn__title', 'Leave the fuel door unlocked'));
+  remind.append(document.createTextNode(
+    'It is the single most common reason a delivery cannot be completed.'));
+  host.append(remind);
+}
+
+/* --- navigation -------------------------------------------------------------- */
+
+$('next').addEventListener('click', async () => {
+  err(null);
+  if (!canContinue()) return;
+
+  if (STEPS[state.step] === 'review') return confirmBooking();
+
+  state.step += 1;
+  if (STEPS[state.step] === 'window' && state.windows === null) loadWindows();
+  window.scrollTo({ top: 0 });
+  render();
+});
+
+$('back').addEventListener('click', (e) => {
+  if (state.step === 0) return;        // let the link go home
+  e.preventDefault();
+  state.step -= 1;
+  window.scrollTo({ top: 0 });
+  render();
+});
+
+async function confirmBooking() {
+  const btn = $('next');
+  btn.disabled = true;
+  btn.textContent = 'Booking…';
+  try {
+    const res = await fetch('/api/booking', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        location_id: state.location_id,
+        vehicle_ids: state.vehicle_ids,
+        delivery_date: state.delivery_date,
+        window_start: state.window_start,
+        tip_cents: state.tip_cents ?? 0,
+        notes: state.notes,
+        // The server recomputes regardless; sending this makes it refuse
+        // rather than silently charge a different number if the price
+        // moved while this screen was open.
+        expect_total_cents: state.quote.price.booking_total_cents,
+      }),
+    });
+    const data = await res.json();
+
+    if (res.status === 409 && data.charges) {
+      await requote();
+      err(data.error);
+      return;
+    }
+    if (res.status === 409) {
+      // The window went while they were deciding. Send them back to pick
+      // another rather than leaving them on a dead Confirm button.
+      state.window_start = null;
+      state.windows = null;
+      state.step = STEPS.indexOf('window');
+      render();
+      err(data.error);
+      return;
+    }
+    if (!res.ok) { err(data.error || 'Could not place that booking.'); return; }
+
+    location.href = `/app/order.html?id=${data.order_id}&new=1`;
+  } catch {
+    err('Network problem — the booking was not placed.');
+  } finally {
+    btn.disabled = false;
+    paintNext();
+  }
+}
+
+/* --- load --------------------------------------------------------------------- */
+
+const [meRes, locRes, vehRes, availRes] = await Promise.all([
+  fetch('/api/account/me'),
+  fetch('/api/account/locations'),
+  fetch('/api/account/vehicles'),
+  fetch('/api/booking/availability'),
+]);
+
+if (!meRes.ok) location.replace('/app/');
+else {
+  const me = await meRes.json();
+  // Booking is refused server-side without a signed waiver, so send them
+  // to finish rather than letting them fill in six screens first.
+  if (me.needs.length) { location.replace('/app/home.html'); }
+  else {
+    state.locations = (await locRes.json()).locations;
+    state.vehicles = (await vehRes.json()).vehicles;
+    state.days = (await availRes.json()).days;
+
+    // Pre-pick the obvious: the usual address and the usual vehicle. It is
+    // a starting point, not a decision — every one is still one tap away.
+    const defLoc = state.locations.find((l) => l.is_default && l.serviceable)
+                ?? state.locations.find((l) => l.serviceable);
+    if (defLoc) state.location_id = defLoc.id;
+    const defVeh = state.vehicles.find((v) => v.is_default) ?? state.vehicles[0];
+    if (defVeh) state.vehicle_ids = [defVeh.id];
+
+    render();
+    requote();
+  }
+}
+</script>
+</body>
+</html>
