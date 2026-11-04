@@ -18,6 +18,6 @@
     "deploy": "wrangler pages deploy public --project-name=fitzy-app"
   },
   "devDependencies": {
-    "wrangler": "^3.90.0"
+    "wrangler": "^4.157.0"
   }
 }
