@@ -1,5 +1,10 @@
 # Local secrets for `wrangler pages dev`. Copy to .dev.vars and fill in.
 # .dev.vars is gitignored. Never commit real keys.
+#
+# ENVIRONMENT belongs here and nowhere else. It is what unlocks local-only
+# behaviour such as returning the sign-in code when SMS is not configured.
+# It must never appear in wrangler.toml, or it ships to production.
+ENVIRONMENT=development
 STRIPE_SECRET_KEY=sk_test_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
 TWILIO_ACCOUNT_SID=ACxxx

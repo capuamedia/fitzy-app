@@ -7,12 +7,13 @@
   "scripts": {
     "dev": "wrangler pages dev",
     "db:create": "wrangler d1 create fitzy-db",
-    "db:migrate:local": "wrangler d1 execute fitzy-db --local --file=./schema/001_init.sql",
+    "db:migrate:local": "wrangler d1 migrations apply fitzy-db --local",
     "db:seed:local": "wrangler d1 execute fitzy-db --local --file=./schema/002_seed_config.sql",
     "db:seed:dev": "wrangler d1 execute fitzy-db --local --file=./schema/003_seed_dev.sql",
     "db:reset:local": "npm run db:migrate:local && npm run db:seed:local && npm run db:seed:dev",
-    "db:migrate:remote": "wrangler d1 execute fitzy-db --remote --file=./schema/001_init.sql",
+    "db:migrate:remote": "wrangler d1 migrations apply fitzy-db --remote",
     "db:seed:remote": "wrangler d1 execute fitzy-db --remote --file=./schema/002_seed_config.sql",
+    "db:status": "wrangler d1 migrations list fitzy-db --remote",
     "r2:create": "wrangler r2 bucket create fitzy-photos",
     "deploy": "wrangler pages deploy public --project-name=fitzy-app"
   },

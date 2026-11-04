@@ -57,9 +57,22 @@ export async function onRequestPost({ request, env }) {
   );
 
   // Before Twilio exists, hand the code back so local development works.
-  // Gated on ENVIRONMENT here, at the one place it can leak.
+  //
+  // Two independent gates, because this one leak hands anyone a sign-in code
+  // for the owner's phone number and with it the whole ops dashboard:
+  //
+  //   1. ENVIRONMENT === 'development'. Set only in .dev.vars, never in
+  //      wrangler.toml, so a deployed build has no ENVIRONMENT at all and
+  //      the safe state is absence rather than a correctly-typed value.
+  //   2. The request must have arrived on a local host. Config can be
+  //      misconfigured; the hostname a request actually came in on cannot.
   if (!sms.delivered) {
-    if (env.ENVIRONMENT === 'development') {
+    const host = new URL(request.url).hostname;
+    const isLocalHost =
+      host === 'localhost' || host === '127.0.0.1' || host === '[::1]' ||
+      host === '::1' || host.endsWith('.localhost');
+
+    if (env.ENVIRONMENT === 'development' && isLocalHost) {
       return json({ ...reply, dev_code: code, dev_note: 'SMS is not configured; code returned for local use only.' });
     }
     if (sms.reason === 'not_configured') {

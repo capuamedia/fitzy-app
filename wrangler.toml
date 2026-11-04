@@ -11,6 +11,7 @@ pages_build_output_dir = "public"
 binding = "DB"
 database_name = "fitzy-db"
 database_id = "1933fd43-cd14-4c11-9a5e-4a8c600b91ca"
+migrations_dir = "migrations"
 
 # ---------------------------------------------------------------------------
 # R2 — pump meter photos.
@@ -39,5 +40,16 @@ bucket_name = "fitzy-photos"
 # scraped browser key cannot run up the bill.
 # ---------------------------------------------------------------------------
 
-[vars]
-ENVIRONMENT = "development"
+# ---------------------------------------------------------------------------
+# No [vars] block on purpose.
+#
+# ENVIRONMENT is deliberately NOT set here. Anything in [vars] ships to
+# production, and several code paths treat ENVIRONMENT === "development" as
+# permission to relax — most importantly, request-code returns the sign-in
+# code in its response when SMS is unconfigured.
+#
+# So the safe state is ABSENCE, not a correct value. ENVIRONMENT lives in
+# .dev.vars, which is gitignored and local-only. A deployed build has no
+# ENVIRONMENT, every development path is off, and nobody has to remember to
+# set anything correctly.
+# ---------------------------------------------------------------------------
