@@ -230,3 +230,37 @@
 .ops-table td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 
 .ops-empty { text-align: center; padding: 36px 20px; color: var(--text-muted); font-size: 14.5px; }
+
+/* --- the week strip --------------------------------------------------------
+   The queue answers "what am I doing now". The strip turns it into "what is
+   coming", without becoming a second screen to maintain. Tap a day, the run
+   sheet below is that day.
+   -------------------------------------------------------------------------- */
+
+.ops-strip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px;
+             scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.ops-strip::-webkit-scrollbar { display: none; }
+
+.ops-day {
+  flex: 0 0 62px; min-height: 78px; border-radius: 14px; background: var(--white);
+  border: 1px solid var(--border); box-shadow: var(--shadow-card);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; cursor: pointer; padding: 8px 4px; font: inherit; color: inherit;
+}
+.ops-day__dow { font-size: 10.5px; font-weight: 700; letter-spacing: .8px;
+                text-transform: uppercase; color: var(--text-muted); }
+.ops-day__n   { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums;
+                color: var(--navy-ink); line-height: 1; }
+.ops-day__load { font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+                 color: var(--text-muted); }
+
+.ops-day.is-selected { background: var(--amber); border-color: var(--amber); }
+.ops-day.is-selected .ops-day__dow,
+.ops-day.is-selected .ops-day__n,
+.ops-day.is-selected .ops-day__load { color: var(--navy); }
+
+.ops-day.is-today .ops-day__n { text-decoration: underline; text-underline-offset: 3px; }
+.ops-day.is-closed { background: transparent; border-style: dashed; box-shadow: none; opacity: .55; }
+/* Amber only when a day is nearly full — scarcity shown when it is real. */
+.ops-day.is-tight .ops-day__load { color: var(--amber-ink); }
+.ops-day.is-full .ops-day__load { color: var(--red); }

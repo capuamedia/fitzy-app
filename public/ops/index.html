@@ -14,7 +14,7 @@
 <div class="ops">
 
   <header class="ops-bar">
-    <span class="ops-bar__title">Today's queue</span>
+    <span class="ops-bar__title" id="title">Today's queue</span>
     <span class="ops-bar__date" id="today">—</span>
   </header>
 
@@ -27,6 +27,8 @@
 
   <main class="ops-main">
     <div id="alerts"></div>
+    <div class="ops-strip" id="strip"></div>
+    <div id="confirm-ahead"></div>
     <div class="ops-counts" id="counts"></div>
     <div id="groups"></div>
   </main>
@@ -111,8 +113,91 @@ function orderCard(o) {
   return card;
 }
 
+let selected = null;   // null = today
+let schedule = null;
+
+const iso = (d) => d.toISOString().slice(0, 10);
+
+function renderStrip() {
+  const host = $('strip');
+  host.replaceChildren();
+  if (!schedule) return;
+
+  for (const d of schedule.days) {
+    const b = el('button', 'ops-day');
+    b.type = 'button';
+    if (d.is_today) b.classList.add('is-today');
+    if (!d.open) b.classList.add('is-closed');
+    if (d.date === (selected ?? schedule.today)) b.classList.add('is-selected');
+    if (d.open && d.remaining === 0) b.classList.add('is-full');
+    else if (d.open && d.remaining <= 2) b.classList.add('is-tight');
+
+    const dt = new Date(`${d.date}T12:00:00Z`);
+    b.append(el('span', 'ops-day__dow', dt.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })));
+    b.append(el('span', 'ops-day__n', String(dt.getUTCDate())));
+    // Load, not a count of nothing: a closed or empty day says so quietly.
+    // A closed day with deliveries still on it is the one thing here that
+    // must not read as empty.
+    if (d.stranded > 0) b.classList.add('is-full');
+    b.append(el('span', 'ops-day__load',
+      d.stranded > 0 ? `${d.stranded}!`
+      : d.blacked_out ? 'closed'
+      : !d.open ? '—'
+      : d.booked ? `${d.booked}/${d.capacity}` : ''));
+
+    b.addEventListener('click', () => { selected = d.date; load(); });
+    host.append(b);
+  }
+}
+
+function renderConfirmAhead() {
+  const host = $('confirm-ahead');
+  host.replaceChildren();
+  if (!schedule) return;
+
+  // Only the ones that are NOT on the day being viewed — those already show
+  // in the run sheet below and repeating them is noise.
+  const viewing = selected ?? schedule.today;
+  const ahead = schedule.to_confirm.filter((o) => o.delivery_date !== viewing);
+  if (!ahead.length) return;
+
+  const c = el('div', 'card');
+  c.append(el('div', 'label', `Waiting on you · ${ahead.length} to confirm`));
+  c.append(el('p', 'ops-field__hint',
+    'Bookings on other days that haven\'t been confirmed yet.'));
+
+  for (const o of ahead.slice(0, 8)) {
+    const row = el('a', 'card__row');
+    row.href = `/ops/order.html?id=${encodeURIComponent(o.id)}`;
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit';
+    const dt = new Date(`${o.delivery_date}T12:00:00Z`);
+    const when = el('div');
+    when.style.cssText = 'min-width:88px';
+    when.append(el('div', null, dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })));
+    const away = el('div', 'ops-field__hint',
+      o.days_away === 0 ? 'today' : o.days_away === 1 ? 'tomorrow' : `in ${o.days_away} days`);
+    when.append(away);
+    row.append(when);
+    const who = el('div');
+    who.style.flex = '1';
+    who.append(el('div', null, `${o.first_name} ${o.last_name}`));
+    who.append(el('div', 'ops-field__hint', `${o.window} · ${o.zone_name}`));
+    row.append(who);
+    row.append(el('span', 'chip chip--status chip--scheduled', 'Confirm'));
+    c.append(row);
+  }
+  if (ahead.length > 8) {
+    c.append(el('div', 'ops-field__hint', `and ${ahead.length - 8} more`));
+  }
+  host.append(c);
+}
+
 async function load() {
-  const res = await fetch('/api/ops/orders');
+  const date = selected;
+  const sres = await fetch('/api/ops/schedule?days=14');
+  if (sres.ok) schedule = await sres.json();
+
+  const res = await fetch('/api/ops/orders' + (date ? `?date=${encodeURIComponent(date)}` : ''));
   if (res.status === 401 || res.status === 403) {
     location.href = '/ops/login.html';
     return;
@@ -129,6 +214,10 @@ async function load() {
 
   const data = await res.json();
   $('today').textContent = fmtDate(data.date);
+  $('title').textContent =
+    data.date === (schedule?.today ?? data.date) ? "Today's queue" : 'Queue';
+  renderStrip();
+  renderConfirmAhead();
 
   // Rates first: if none are posted, nothing else on this screen matters
   // because no customer can book.
@@ -157,6 +246,14 @@ async function load() {
     }
   } catch { /* the queue still renders without this */ }
 
+  const stranded = (schedule?.days || []).filter((d) => d.stranded > 0);
+  if (stranded.length) {
+    alerts.append(alertBox('stop',
+      `${stranded.reduce((n, d) => n + d.stranded, 0)} deliveries on days you're closed`,
+      `${stranded.map((d) => d.date).join(', ')} — booked before the day was closed. ` +
+      `Nothing cancelled them, so they're still yours to move or honour.`));
+  }
+
   if (data.unsettled > 0) {
     alerts.append(alertBox('warn', `${data.unsettled} delivery${data.unsettled === 1 ? '' : 's'} not settled`,
       'Gallons or meter photos are missing. These cannot be billed until they are recorded.'));
@@ -176,7 +273,11 @@ async function load() {
   }
 
   if (!data.orders.length) {
-    groups.append(el('div', 'ops-empty', 'Nothing scheduled today.'));
+    const day = schedule?.days.find((d) => d.date === data.date);
+    groups.append(el('div', 'ops-empty',
+      day?.blacked_out ? 'Closed this day.'
+      : day && !day.open ? 'Not a service day.'
+      : 'Nothing booked this day.'));
     return;
   }
 
@@ -193,7 +294,8 @@ async function load() {
 
 load();
 // The queue is a live run sheet; refresh while it sits open on the truck.
-setInterval(load, 60000);
+// Only auto-refresh the live run sheet; don't yank a day being reviewed.
+setInterval(() => { if (!selected) load(); }, 60000);
 
 document.getElementById('signout')?.addEventListener('click', async () => {
   await fetch('/api/auth/logout', { method: 'POST' });
