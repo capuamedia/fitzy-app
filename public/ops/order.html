@@ -45,6 +45,14 @@ const ACTION_LABEL = {
   cancelled: 'Cancel this order',
 };
 
+// Undoing a step. Phrased as what it puts the order back to, because
+// "undo" alone doesn't say where you land.
+const BACK_LABEL = {
+  scheduled: 'Undo — back to not confirmed',
+  confirmed: 'Undo — back to confirmed',
+  en_route:  'Reopen — back to on the way',
+};
+
 let state = null;
 
 /* ---------------------------------------------------------------- render */
@@ -121,6 +129,16 @@ function renderStatus(data) {
     b.style.marginTop = '8px';
     b.addEventListener('click', () => advance(next, b));
     c.append(b);
+  }
+
+  // Every forward step is reversible. Mis-taps happen one-handed next to a
+  // truck, and the alternative is a wrong record nobody can correct.
+  for (const prev of data.back_actions || []) {
+    const u = el('button', 'textlink', BACK_LABEL[prev] || 'Undo');
+    u.type = 'button';
+    u.style.cssText = 'display:block;margin:10px auto 0';
+    u.addEventListener('click', () => advance(prev, u));
+    c.append(u);
   }
   return c;
 }
@@ -224,12 +242,13 @@ function renderFillUp(data) {
   settle.append(seg);
   form.append(settle);
 
-  const go = el('button', 'btn btn--primary', 'Settle this delivery');
+  const go = el('button', 'btn btn--primary', 'Mark delivered & settle');
   go.id = 'settle';
   go.addEventListener('click', () => settleDelivery(go));
   form.append(go);
-  form.append(el('p', 'btn-reason', '')).lastChild.id = 'settlereason';
-  $('detail').dataset.ready = '1';
+  const settleReason = el('p', 'btn-reason', '');
+  settleReason.id = 'settlereason';
+  form.append(settleReason);
 
   c.append(form);
   return c;
@@ -311,13 +330,15 @@ function renderPhotos(data) {
   file.addEventListener('change', () => uploadPhoto(file, label));
   label.append(file);
   c.append(label);
-  c.append(el('p', 'btn-reason', '')).lastChild.id = 'photoreason';
+  const photoReason = el('p', 'btn-reason', '');
+  photoReason.id = 'photoreason';
+  c.append(photoReason);
   return c;
 }
 
 /* ----------------------------------------------------------------- actions */
 
-async function advance(status, btn) {
+async function advance(status, btn, confirmed = false) {
   btn.disabled = true;
   const was = btn.textContent;
   btn.textContent = 'Working…';
@@ -325,9 +346,18 @@ async function advance(status, btn) {
     const res = await fetch(`/api/ops/orders/${encodeURIComponent(id)}/status`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, confirm: confirmed }),
     });
     const data = await res.json();
+
+    if (res.status === 409 && data.needs_confirmation) {
+      btn.disabled = false;
+      btn.textContent = was;
+      if (confirm(`${data.message}\n\nReopen this delivery?`)) {
+        return advance(status, btn, true);
+      }
+      return;
+    }
     if (!res.ok) { showAlert('stop', 'Could not update', data.error); return; }
     await load();
   } finally { btn.disabled = false; btn.textContent = was; }
@@ -368,7 +398,7 @@ async function settleDelivery(btn, confirmUnusual = false) {
     reason.textContent = 'Network problem — nothing was settled.';
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Settle this delivery';
+    btn.textContent = 'Mark delivered & settle';
   }
 }
 

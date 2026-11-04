@@ -110,6 +110,7 @@ export async function onRequestGet({ request, env, params }) {
     photos,
     visits,
     next_actions: nextActions(order.status),
+    back_actions: backActions(order.status),
   });
 }
 
@@ -118,6 +119,30 @@ export async function onRequestGet({ request, env, params }) {
  * as well as hidden in the UI — a stale tab must not be able to send an
  * order backwards.
  */
+/**
+ * One step back. Justin works this on a phone, one-handed, next to a truck,
+ * and a mis-tap should not be permanent. Every forward move is reversible.
+ *
+ * Reopening a SETTLED delivery is allowed too, because the alternative is
+ * living with a wrong gallon figure on an invoice. It clears the fuel total
+ * and settlement so they have to be entered again deliberately — the
+ * recorded gallons stay, prefilled, so it is a correction and not a retype.
+ */
+export function backActions(status) {
+  switch (status) {
+    case 'confirmed': return ['scheduled'];
+    case 'en_route':  return ['confirmed'];
+    case 'delivered': return ['en_route'];
+    case 'no_access': return ['en_route'];
+    // Un-cancelling lands on 'scheduled' rather than restoring whatever the
+    // order was before. Deliberate: a cancelled order has usually been
+    // communicated to the customer, so bringing it back should mean
+    // confirming it again, not silently resuming as though nothing happened.
+    case 'cancelled': return ['scheduled'];
+    default:          return [];
+  }
+}
+
 export function nextActions(status) {
   switch (status) {
     case 'scheduled': return ['confirmed', 'cancelled'];
