@@ -49,6 +49,40 @@ Infra: new secret RESEND_API_KEY
 Infra: new binding
 ```
 
+### Getting the trailer to actually parse
+
+Two things have to be true, and both have been got wrong in this repo:
+
+1. The trailer sits in the **last block** of the message, alongside
+   `Co-Authored-By`, with no blank line splitting them.
+2. If the value wraps, **every continuation line is indented.** An
+   unindented second line is not trailer-shaped, which stops git reading
+   the block as trailers at all — so the `Infra:` line silently vanishes
+   even though the text is plainly there in `git log`.
+
+```
+Infra: apply migration 0003, and add the Access bypass for
+  /api/stripe/webhook — indented, so this line belongs to the
+  trailer above it rather than ending the block.
+Co-Authored-By: ...
+```
+
+A single long line works too; it is the unindented wrap that fails.
+
+**Check before pushing**, because the failure is invisible in `git log`:
+
+```
+git log -1 --format='%(trailers:key=Infra,valueonly)'
+```
+
+Empty output means the trailer did not parse. Amend and check again.
+`.githooks/commit-msg` catches this automatically — enable it once per
+clone with:
+
+```
+git config core.hooksPath .githooks
+```
+
 ## Layout
 
 - `migrations/` — applied in order, tracked by Wrangler, never edited after

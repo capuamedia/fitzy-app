@@ -1,0 +1,48 @@
+#!/bin/sh
+# Refuse a commit whose Infra: trailer will not parse.
+#
+# Two sessions work on this repo and the infra one acts on `Infra:`
+# trailers. A malformed one is invisible: the text sits there in `git log`
+# looking correct while `%(trailers:key=Infra)` comes back empty, so the
+# message is simply never acted on. That has happened twice.
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+
+msg="$1"
+
+# Nothing claiming to be an Infra line? Nothing to check.
+grep -qiE '^[[:space:]]*Infra:' "$msg" || exit 0
+
+parsed=$(git interpret-trailers --parse <"$msg" | grep -c '^Infra:')
+
+if [ "$parsed" -gt 0 ]; then
+  exit 0
+fi
+
+cat >&2 <<'EOF'
+
+  Commit refused: the Infra: trailer will not parse.
+
+  The text is in your message but git does not read it as a trailer, so
+  the infra session will never see it.
+
+  Two usual causes:
+
+    1. The value wraps onto an unindented line. Indent every continuation
+       line by two spaces, or keep the value on one line however long:
+
+         Infra: apply migration 0003, and scope the Access bypass to
+           /api/stripe/webhook — indented, so this line belongs to the
+           trailer above rather than ending the block.
+         Co-Authored-By: ...
+
+    2. A blank line separates Infra: from the Co-Authored-By block. The
+       trailers must be one unbroken block at the end of the message.
+
+  Check it yourself with:
+
+    git log -1 --format='%(trailers:key=Infra,valueonly)'
+
+EOF
+exit 1
