@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C1626">
+<title>My addresses · Fitzy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="hdr">
+    <a class="hdr__back" href="/app/home.html" aria-label="Back" style="color:#fff;text-decoration:none">←</a>
+    <img class="hdr__logo" src="/assets/fitzy-badge.svg" alt="Fitzy Mobile Fueling">
+  </header>
+
+  <main class="app__body">
+    <h1 class="page-title">My addresses</h1>
+    <p class="page-sub" id="sub"></p>
+
+    <div class="rows" id="rows" style="margin-top:16px"></div>
+
+    <a class="btn btn--secondary" href="/app/location.html" style="margin-top:16px">Add an address</a>
+  </main>
+
+  <footer class="band"></footer>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+};
+
+const res = await fetch('/api/account/locations');
+if (res.status === 401) location.replace('/app/');
+else {
+  const { locations } = await res.json();
+  const rows = $('rows');
+
+  if (!locations.length) {
+    const empty = el('div', 'empty');
+    empty.append(
+      el('div', 'empty__title', 'No addresses yet'),
+      el('div', 'empty__body', 'Add where you want us to come and we only need it once.')
+    );
+    rows.append(empty);
+  } else {
+    $('sub').textContent = locations.length === 1
+      ? 'One address on your account.'
+      : `${locations.length} addresses on your account.`;
+
+    for (const l of locations) {
+      const row = el('button', 'rowcard');
+      row.type = 'button';
+
+      const main = el('div', 'rowcard__main');
+      const title = el('div', 'rowcard__title');
+      title.append(el('span', null, l.label));
+      if (l.is_default) title.append(el('span', 'chip chip--default', 'Usual'));
+      // An address we cannot serve has to say so here, not at the point of
+      // booking, where it would read as the booking being broken.
+      if (!l.serviceable) title.append(el('span', 'chip', 'Not served yet'));
+
+      main.append(title, el('div', 'rowcard__sub', l.one_line));
+      row.append(main, el('span', 'rowcard__chevron', '›'));
+      row.addEventListener('click', () => { location.href = `/app/location.html?id=${l.id}`; });
+      rows.append(row);
+    }
+  }
+}
+</script>
+</body>
+</html>

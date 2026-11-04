@@ -18,8 +18,9 @@
     <img class="hdr__logo" src="/assets/fitzy-badge.svg" alt="Fitzy Mobile Fueling">
   </header>
 
+  <!-- Five steps: account, verify, agreement, vehicle, address. -->
   <div class="steps" style="margin-top:14px">
-    <i class="is-done"></i><i class="is-done"></i><i class="is-done"></i>
+    <i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i></i><i></i>
   </div>
 
   <main class="app__body">
@@ -144,7 +145,15 @@ $('accept').addEventListener('click', async () => {
     });
     const data = await res.json();
     if (!res.ok) { reason.textContent = data.error || 'Could not save your signature.'; return; }
-    location.href = '/app/welcome.html';
+
+    // Straight on to the next missing piece. The POST returns the refreshed
+    // `needs`, so there is no second round trip to find out what it is, and
+    // welcome.html stays the finish line rather than a mid-flow stop.
+    const next = data.needs[0];
+    location.href =
+      next === 'vehicle'    ? '/app/vehicle.html'
+      : next === 'location' ? '/app/location.html'
+      : '/app/welcome.html';
   } catch {
     reason.textContent = 'Network problem — your signature was not saved.';
   } finally {

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C1626">
+<title>Fitzy Mobile Fueling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="hdr">
+    <img class="hdr__logo" src="/assets/fitzy-badge.svg" alt="Fitzy Mobile Fueling">
+  </header>
+
+  <main class="app__body">
+
+    <div class="greet" id="greet">&nbsp;</div>
+    <p class="page-sub" id="greet-sub"></p>
+
+    <!-- Anything still missing from setup comes first. It is the one thing
+         standing between the customer and a delivery. -->
+    <div id="setup" hidden></div>
+
+    <a class="btn btn--primary" id="book" href="/app/book.html" style="margin-top:16px">Book a fill-up</a>
+    <p class="btn-reason" id="book-reason" hidden></p>
+
+    <!-- Upcoming deliveries -->
+    <section id="upcoming" hidden style="margin-top:26px">
+      <div class="label label--ink" style="padding-left:2px">Coming up</div>
+      <div class="rows" id="upcoming-rows" style="margin-top:10px"></div>
+    </section>
+
+    <section style="margin-top:26px">
+      <div class="label label--ink" style="padding-left:2px">My account</div>
+      <div class="card card--flush" style="margin-top:10px">
+        <a class="card__row linkrow" href="/app/vehicles.html">
+          <span id="veh-label">My vehicles</span><span class="rowcard__chevron">›</span>
+        </a>
+        <a class="card__row linkrow" href="/app/locations.html">
+          <span id="loc-label">My addresses</span><span class="rowcard__chevron">›</span>
+        </a>
+        <a class="card__row linkrow" href="/app/orders.html">
+          <span>Past deliveries</span><span class="rowcard__chevron">›</span>
+        </a>
+      </div>
+    </section>
+
+    <button class="textlink" id="signout" style="margin:26px auto 0">Sign out</button>
+
+  </main>
+
+  <footer class="band"></footer>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+};
+
+$('signout').addEventListener('click', async () => {
+  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch { /* leaving anyway */ }
+  location.replace('/app/');
+});
+
+const [meRes, ordersRes] = await Promise.all([
+  fetch('/api/account/me'),
+  fetch('/api/account/orders?scope=upcoming&limit=5'),
+]);
+if (!meRes.ok) location.replace('/app/');
+else {
+  const me = await meRes.json();
+
+  $('greet').textContent = `Hi, ${me.user.first_name}`;
+  $('veh-label').textContent = me.vehicles === 1 ? 'My vehicles · 1' : `My vehicles · ${me.vehicles}`;
+  $('loc-label').textContent = me.locations === 1 ? 'My addresses · 1' : `My addresses · ${me.locations}`;
+
+  /* Setup gaps block booking, so say which one and link straight to it
+     rather than letting the customer find out at the end of the flow. */
+  const gap = me.needs[0];
+  if (gap) {
+    const copy = {
+      waiver:   ['One thing left', 'We need your signature on the customer agreement before your first delivery.', 'Read and sign', '/app/waiver.html'],
+      vehicle:  ['Add a vehicle', 'We need to know which car to fill and what fuel it takes.', 'Add a vehicle', '/app/vehicle.html'],
+      location: ['Add an address', 'Tell us where to come and we only need it once.', 'Add an address', '/app/location.html'],
+    }[gap];
+
+    const warn = el('div', 'warn');
+    warn.style.marginTop = '14px';
+    warn.append(el('div', 'warn__title', copy[0]), el('div', null, copy[1]));
+    const cta = el('a', 'btn btn--primary', copy[2]);
+    cta.href = copy[3];
+    cta.style.marginTop = '12px';
+
+    const wrap = $('setup');
+    wrap.hidden = false;
+    wrap.append(warn, cta);
+
+    // One action, not two. A greyed-out "Book a fill-up" sitting under an
+    // amber "Add an address" reads as two choices where there is only one,
+    // and the amber on both makes neither look like the thing to tap.
+    $('book').hidden = true;
+    $('book-reason').hidden = false;
+    $('book-reason').textContent = 'Booking opens as soon as this is done.';
+    $('greet-sub').textContent = 'Almost set up.';
+  } else {
+    $('greet-sub').textContent = 'Ready when you are.';
+  }
+
+  /* Upcoming deliveries */
+  if (ordersRes.ok) {
+    const { orders } = await ordersRes.json();
+    if (orders.length) {
+      $('upcoming').hidden = false;
+      const rows = $('upcoming-rows');
+      for (const o of orders) {
+        const row = el('button', 'rowcard');
+        row.type = 'button';
+
+        const main = el('div', 'rowcard__main');
+        const title = el('div', 'rowcard__title');
+        title.append(el('span', null, `${o.date_label}, ${o.window}`));
+        title.append(el('span', `chip chip--status chip--${o.status === 'en_route' ? 'enroute' : o.status}`, o.status_label));
+
+        const cars = o.vehicles.map((v) => v.display).join(', ');
+        main.append(title, el('div', 'rowcard__sub', [o.location.label, cars].filter(Boolean).join(' · ')));
+
+        row.append(main, el('span', 'rowcard__chevron', '›'));
+        row.addEventListener('click', () => { location.href = `/app/order.html?id=${o.id}`; });
+        rows.append(row);
+      }
+    }
+  }
+}
+</script>
+</body>
+</html>

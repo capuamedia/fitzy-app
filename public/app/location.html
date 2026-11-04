@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C1626">
+<title>Your address · Fitzy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="hdr">
+    <a class="hdr__back" href="/app/locations.html" aria-label="Back" id="back" style="color:#fff;text-decoration:none">←</a>
+    <img class="hdr__logo" src="/assets/fitzy-badge.svg" alt="Fitzy Mobile Fueling">
+  </header>
+
+  <div class="steps" id="steps" hidden style="margin-top:14px">
+    <i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i>
+  </div>
+
+  <main class="app__body">
+    <h1 class="page-title" id="title">Add an address</h1>
+    <p class="page-sub" id="sub">Where should we come to fill up?</p>
+
+    <form class="form" id="form" style="margin-top:18px" novalidate>
+
+      <div class="field">
+        <label class="field-label" for="label">Name this spot <span class="help">— required</span></label>
+        <input class="input" id="label" autocomplete="off" placeholder="Home" maxlength="24">
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="line1">Street address <span class="help">— required</span></label>
+        <input class="input" id="line1" autocomplete="address-line1" placeholder="1455 Lynn Road" maxlength="80">
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="line2">Apartment, unit or suite</label>
+        <input class="input" id="line2" autocomplete="address-line2" placeholder="Apt 4B" maxlength="60">
+      </div>
+
+      <div class="two-up">
+        <div class="field">
+          <label class="field-label" for="city">City <span class="help">— required</span></label>
+          <input class="input" id="city" autocomplete="address-level2" placeholder="Thousand Oaks" maxlength="40">
+        </div>
+        <div class="field">
+          <label class="field-label" for="zip">Zip <span class="help">— required</span></label>
+          <input class="input" id="zip" inputmode="numeric" autocomplete="postal-code" placeholder="91360" maxlength="5">
+        </div>
+      </div>
+
+      <!-- The zip is what decides both whether we serve the address and what
+           it costs, so the answer appears as soon as five digits are in
+           rather than after a save that might be refused. -->
+      <div id="zone-out" style="margin-top:2px"></div>
+
+      <div class="field">
+        <label class="field-label" for="gate">Gate or call-box code</label>
+        <input class="input" id="gate" autocomplete="off" placeholder="#1234" maxlength="24">
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="notes">Where to park, and where the car sits</label>
+        <textarea class="input input--area" id="notes" maxlength="400"
+          placeholder="Driveway on the left, past the white gate. Cars face the street."></textarea>
+        <span class="help" style="padding:6px 18px 0">
+          The one thing that most often decides whether a delivery goes smoothly.
+        </span>
+      </div>
+
+      <label class="consent" for="is-default" id="default-row" hidden>
+        <span class="checkbox" id="cb-default" aria-hidden="true"></span>
+        <input type="checkbox" id="is-default" style="position:absolute;opacity:0;width:1px;height:1px">
+        <span class="consent__text">Make this my usual address</span>
+      </label>
+
+      <button class="btn btn--primary" type="submit" id="save">Save address</button>
+      <p class="btn-reason" id="error" hidden></p>
+      <button class="textlink btn--danger-link" type="button" id="remove" hidden style="margin:4px auto 0">
+        Remove this address
+      </button>
+    </form>
+  </main>
+
+  <footer class="band"></footer>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const editingId = new URLSearchParams(location.search).get('id');
+let onboarding = false;
+
+const err = (msg) => {
+  const e = $('error');
+  if (!msg) { e.hidden = true; return; }
+  e.textContent = msg;
+  e.hidden = false;
+  e.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+};
+
+$('is-default').addEventListener('change', () => {
+  $('cb-default').classList.toggle('is-checked', $('is-default').checked);
+});
+
+/* --- zip to zone -----------------------------------------------------------
+   A table lookup, not a geocode. It answers "do you come here, and what does
+   it cost?" while the customer is still typing, with no Maps key involved. */
+
+let zipChecked = null;
+
+async function checkZip() {
+  const zip = $('zip').value.trim();
+  const out = $('zone-out');
+  if (zip.length !== 5) { out.innerHTML = ''; zipChecked = null; return; }
+  if (zip === zipChecked) return;
+  zipChecked = zip;
+
+  out.innerHTML = '<p class="help" style="padding:4px 18px 0">Checking…</p>';
+  try {
+    const res = await fetch(`/api/zones?zip=${encodeURIComponent(zip)}`);
+    if (!res.ok) { out.innerHTML = ''; return; }
+    const d = await res.json();
+    // Guard against a slow reply for a zip the customer has since changed.
+    if ($('zip').value.trim() !== zip) return;
+
+    if (d.serviceable) {
+      out.innerHTML =
+        `<div class="card" style="padding:14px 16px">
+           <div class="label label--ink">${d.zone.name}</div>
+           <p style="font-size:13.5px;line-height:1.5;margin-top:6px">
+             We deliver here. <strong>${d.zone.per_visit}</strong> per visit,
+             or <strong>${d.zone.monthly_price}</strong> a month on a membership,
+             plus fuel.
+           </p>
+         </div>`;
+    } else if (d.reason === 'paused') {
+      out.innerHTML =
+        `<div class="warn">
+           <div class="warn__title">${d.zone.name} is paused right now</div>
+           We're not taking deliveries in this area at the moment. You can still
+           save the address and we'll be in touch when it reopens.
+         </div>`;
+    } else {
+      // Saved anyway, on purpose: refusing would strand someone mid-signup
+      // with no account, and the address tells the business where demand is.
+      out.innerHTML =
+        `<div class="warn">
+           <div class="warn__title">We don't reach ${zip} yet</div>
+           You can still save this address — it's how we decide where to expand
+           next. You just won't be able to book to it for now.
+         </div>`;
+    }
+  } catch {
+    out.innerHTML = '';
+    zipChecked = null;
+  }
+}
+
+$('zip').addEventListener('input', (e) => {
+  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 5);
+  checkZip();
+});
+
+/* --- save ----------------------------------------------------------------- */
+
+$('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  err(null);
+
+  if (!$('label').value.trim()) return err('Give this address a name, like Home or Office.');
+  if (!$('line1').value.trim()) return err('Enter the street address.');
+  if (!$('city').value.trim())  return err('Enter the city.');
+  if ($('zip').value.trim().length !== 5) return err('Enter a five-digit zip code.');
+
+  const btn = $('save');
+  btn.disabled = true;
+  const was = btn.textContent;
+  btn.textContent = 'Saving…';
+
+  const payload = {
+    label: $('label').value,
+    address_line1: $('line1').value,
+    address_line2: $('line2').value,
+    city: $('city').value,
+    zip: $('zip').value,
+    gate_code: $('gate').value,
+    parking_notes: $('notes').value,
+  };
+  if ($('is-default').checked) payload.is_default = true;
+
+  try {
+    const res = await fetch(editingId ? `/api/account/locations/${editingId}` : '/api/account/locations', {
+      method: editingId ? 'PATCH' : 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return err(data.error || 'Could not save this address.');
+
+    location.href = onboarding ? '/app/welcome.html' : '/app/locations.html';
+  } catch {
+    err('Network problem — nothing was saved.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = was;
+  }
+});
+
+$('remove').addEventListener('click', async () => {
+  err(null);
+  const btn = $('remove');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/account/locations/${editingId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) return err(data.error || 'Could not remove this address.');
+    location.href = '/app/locations.html';
+  } catch {
+    err('Network problem — nothing was removed.');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* --- load ----------------------------------------------------------------- */
+
+const [meRes, listRes] = await Promise.all([
+  fetch('/api/account/me'),
+  fetch('/api/account/locations'),
+]);
+if (!meRes.ok) location.replace('/app/');
+else {
+  const me = await meRes.json();
+  const { locations } = listRes.ok ? await listRes.json() : { locations: [] };
+
+  onboarding = !editingId && me.needs.includes('location');
+  $('steps').hidden = !onboarding;
+  $('back').style.display = onboarding ? 'none' : '';
+
+  if (onboarding) {
+    $('title').textContent = 'Where do we come?';
+    $('sub').textContent = "Your first address. Most people start with home.";
+    $('label').value = 'Home';
+  }
+
+  if (locations.filter((l) => l.id !== editingId).length) $('default-row').hidden = false;
+
+  if (editingId) {
+    const l = locations.find((x) => x.id === editingId);
+    if (!l) { location.replace('/app/locations.html'); }
+    else {
+      $('title').textContent = 'Edit address';
+      $('sub').textContent = l.label;
+      $('label').value = l.label ?? '';
+      $('line1').value = l.address_line1 ?? '';
+      $('line2').value = l.address_line2 ?? '';
+      $('city').value  = l.city ?? '';
+      $('zip').value   = l.zip ?? '';
+      $('gate').value  = l.gate_code ?? '';
+      $('notes').value = l.parking_notes ?? '';
+      $('save').textContent = 'Save changes';
+      $('remove').hidden = false;
+      if (l.is_default) $('default-row').hidden = true;
+      checkZip();
+    }
+  }
+}
+</script>
+</body>
+</html>

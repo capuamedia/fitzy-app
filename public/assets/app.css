@@ -75,6 +75,124 @@
 .form  { display: flex; flex-direction: column; gap: 16px; }
 .field { display: flex; flex-direction: column; }
 
+.two-up { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* A native select, but wearing `.select-row` so it matches the pill inputs
+   either side of it. Appearance is reset because the platform chrome is the
+   one thing that cannot be made to match. */
+.plain-select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0 44px 0 20px;
+  font: 400 16px 'Barlow', sans-serif;
+  color: var(--text);
+  cursor: pointer;
+  /* The chevron is drawn here rather than shipped as an asset. */
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 22px) 50%, calc(100% - 16px) 50%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+.plain-select:focus { outline: 0; }
+.select-row:focus-within { border: 2px solid var(--amber); }
+
+/* --- fuel grade ------------------------------------------------------------
+   Three buttons, not a dropdown. Putting 87 in a car that wants 91 is the
+   costliest mistake in the app, so the choice is visible, not a tap deep.
+   -------------------------------------------------------------------------- */
+
+.grades { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.grade {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  height: 68px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  cursor: pointer;
+  font-family: 'Barlow', sans-serif;
+  color: var(--text);
+  transition: border-color .12s ease, background-color .12s ease;
+}
+.grade__name { font-weight: 700; font-size: 14.5px; }
+.grade__sub { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.grade.is-active {
+  border: 2px solid var(--amber);
+  background: var(--amber-pale);
+}
+.grade.is-active .grade__sub { color: var(--amber-ink); }
+.grade.is-disabled, .grade:disabled { opacity: .35; cursor: not-allowed; }
+
+/* --- destructive text action -----------------------------------------------
+   Removing something is a real option, not a hidden one, but it does not get
+   a full-width button competing with Save.
+   -------------------------------------------------------------------------- */
+
+.btn--danger-link { color: var(--red); font-weight: 600; }
+
+/* --- list rows -------------------------------------------------------------
+   The vehicle and address lists. A row is a single tap target that opens the
+   editor; nothing is tucked behind a swipe, because a swipe is invisible.
+   -------------------------------------------------------------------------- */
+
+.rows { display: flex; flex-direction: column; gap: 10px; }
+.rowcard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  padding: 15px 18px;
+  cursor: pointer;
+  font-family: 'Barlow', sans-serif;
+  color: var(--text);
+}
+.rowcard:hover { border-color: var(--ring); }
+.rowcard__main { flex: 1; min-width: 0; }
+.rowcard__title {
+  font-weight: 700;
+  font-size: 15.5px;
+  color: var(--navy-ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rowcard__sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rowcard__chevron { color: var(--text-muted); font-size: 18px; flex: none; }
+
+/* A `.card__row` that is a link: same row, plus the chevron pushed right. */
+.linkrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 600;
+}
+.linkrow:hover { background: #FAF9F6; }
+
 /* --- step chrome ----------------------------------------------------------- */
 
 .steps { display: flex; gap: 5px; padding: 0 24px; margin-top: -8px; }

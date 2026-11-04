@@ -8,6 +8,15 @@
    Load this before any page stylesheet. Every screen uses these tokens.
    ========================================================================== */
 
+/* The `hidden` attribute has to actually hide things.
+   The browser's own rule is `[hidden] { display: none }` at the lowest
+   possible weight, so any component here that sets `display: flex` or
+   `grid` silently beats it and the element stays on screen. That is how a
+   "make this my usual vehicle" checkbox ends up showing to someone with one
+   vehicle. Scripts toggle `hidden` all over this app, so the attribute wins
+   here, once, rather than every component remembering to handle it. */
+[hidden] { display: none !important; }
+
 :root {
   /* --- Navy. Three shades, each with a job. ---------------------------- */
   --navy:        #0C1626;   /* chrome: header, footer, dock, nav           */
@@ -188,6 +197,9 @@ a:hover { color: var(--amber); }
   text-transform: uppercase;
   flex: none;
   cursor: pointer;
+  /* Buttons are <a> as often as <button> here; without this the anchors
+     arrive underlined and the two stop matching. */
+  text-decoration: none;
 }
 .btn--primary {
   background: var(--amber);
@@ -371,20 +383,6 @@ a:hover { color: var(--amber); }
   font-variant-numeric: tabular-nums;
 }
 
-/* Today's rate, locked at booking and honoured at delivery. */
-.rate-locked {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--amber);
-  color: var(--navy);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 1.3px;
-  text-transform: uppercase;
-  border-radius: var(--r-pill);
-  padding: 4px 9px 4px 8px;
-}
 
 /* A value that cannot be changed yet because a rule is still unsettled. */
 .pending {

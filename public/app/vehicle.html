@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C1626">
+<title>Your vehicle · Fitzy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="hdr">
+    <a class="hdr__back" href="/app/vehicles.html" aria-label="Back" id="back" style="color:#fff;text-decoration:none">←</a>
+    <img class="hdr__logo" src="/assets/fitzy-badge.svg" alt="Fitzy Mobile Fueling">
+  </header>
+
+  <div class="steps" id="steps" hidden style="margin-top:14px">
+    <i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i class="is-done"></i><i></i>
+  </div>
+
+  <main class="app__body">
+    <h1 class="page-title" id="title">Add a vehicle</h1>
+    <p class="page-sub" id="sub">We need the fuel type so we never put the wrong grade in.</p>
+
+    <form class="form" id="form" style="margin-top:18px" novalidate>
+
+      <div class="field">
+        <label class="field-label" for="make">Make <span class="help">— required</span></label>
+        <input class="input" id="make" autocomplete="off" placeholder="Toyota" maxlength="40">
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="model">Model <span class="help">— required</span></label>
+        <input class="input" id="model" autocomplete="off" placeholder="4Runner" maxlength="40">
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="fuel">Fuel type <span class="help">— required</span></label>
+        <div id="fuel" class="grades">
+          <button class="grade" type="button" data-grade="87">
+            <span class="grade__name">Regular</span><span class="grade__sub">87</span>
+          </button>
+          <button class="grade" type="button" data-grade="91">
+            <span class="grade__name">Premium</span><span class="grade__sub">91</span>
+          </button>
+          <button class="grade" type="button" data-grade="diesel">
+            <span class="grade__name">Diesel</span><span class="grade__sub">&nbsp;</span>
+          </button>
+        </div>
+        <p class="help" style="padding:8px 18px 0">
+          It's on the inside of your fuel door if you're not sure.
+        </p>
+      </div>
+
+      <!-- Colour and plate are what the driver actually uses to pick the car
+           out of a driveway with three cars in it, so they are asked for
+           plainly rather than buried as "optional details". -->
+      <div class="two-up">
+        <div class="field">
+          <label class="field-label" for="color">Color</label>
+          <input class="input" id="color" autocomplete="off" placeholder="Silver" maxlength="24">
+        </div>
+        <div class="field">
+          <label class="field-label" for="year">Year</label>
+          <input class="input" id="year" inputmode="numeric" autocomplete="off" placeholder="2021" maxlength="4">
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="plate">License plate</label>
+        <input class="input" id="plate" autocomplete="off" placeholder="8ABC123" maxlength="12"
+               style="text-transform:uppercase">
+        <span class="help" style="padding:6px 18px 0">Helps the driver find the right car.</span>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="class">Vehicle type</label>
+        <div class="select-row" style="padding:0">
+          <select class="plain-select" id="class">
+            <option value="standard">Car, truck or SUV</option>
+            <option value="large">Large truck or dually</option>
+            <option value="motorhome">Motorhome or RV</option>
+          </select>
+        </div>
+        <p class="help" id="class-note" style="padding:8px 18px 0"></p>
+      </div>
+
+      <label class="consent" for="is-default" id="default-row" hidden>
+        <span class="checkbox" id="cb-default" aria-hidden="true"></span>
+        <input type="checkbox" id="is-default" style="position:absolute;opacity:0;width:1px;height:1px">
+        <span class="consent__text">Make this my usual vehicle</span>
+      </label>
+
+      <button class="btn btn--primary" type="submit" id="save">Save vehicle</button>
+      <p class="btn-reason" id="error" hidden></p>
+      <button class="textlink btn--danger-link" type="button" id="remove" hidden style="margin:4px auto 0">
+        Remove this vehicle
+      </button>
+    </form>
+  </main>
+
+  <footer class="band"></footer>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const editingId = new URLSearchParams(location.search).get('id');
+
+let grade = null;
+let fees = null;
+let onboarding = false;
+
+const err = (msg) => {
+  const e = $('error');
+  if (!msg) { e.hidden = true; return; }
+  e.textContent = msg;
+  e.hidden = false;
+  e.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+};
+
+/* --- fuel grade ------------------------------------------------------------
+   Three buttons rather than a dropdown. Putting 87 in a car that wants 91 is
+   the mistake with the highest cost in this whole app, so the choice is
+   visible rather than one tap deep. */
+function pickGrade(g) {
+  grade = g;
+  for (const b of $('fuel').children) b.classList.toggle('is-active', b.dataset.grade === g);
+  syncClassNote();
+}
+for (const b of $('fuel').children) b.addEventListener('click', () => { pickGrade(b.dataset.grade); err(null); });
+
+$('is-default').addEventListener('change', () => {
+  $('cb-default').classList.toggle('is-checked', $('is-default').checked);
+});
+
+$('year').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4); });
+
+/* A motorhome carries a fee, so the screen says so at the moment the choice
+   is made rather than letting it turn up as a surprise on the receipt. */
+function syncClassNote() {
+  const cls = $('class').value;
+  const note = $('class-note');
+  if (cls === 'motorhome' && fees) {
+    note.innerHTML = `Motorhomes are a <strong>${fees.motorhome_fee}</strong> fee per fill, on top of the fuel.`;
+  } else if (cls === 'large') {
+    note.textContent = 'Good to know so the driver brings the right hose.';
+  } else {
+    note.textContent = '';
+  }
+  // Premium motorhomes are not a thing; the API rejects the pair, so don't
+  // let the screen offer it.
+  const premium = $('fuel').querySelector('[data-grade="91"]');
+  premium.disabled = cls === 'motorhome';
+  premium.classList.toggle('is-disabled', cls === 'motorhome');
+  if (cls === 'motorhome' && grade === '91') pickGrade(null);
+}
+$('class').addEventListener('change', syncClassNote);
+
+/* --- save ----------------------------------------------------------------- */
+
+$('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  err(null);
+
+  if (!$('make').value.trim())  return err('Enter the make.');
+  if (!$('model').value.trim()) return err('Enter the model.');
+  if (!grade)                   return err('Choose the fuel type.');
+
+  const btn = $('save');
+  btn.disabled = true;
+  const was = btn.textContent;
+  btn.textContent = 'Saving…';
+
+  const payload = {
+    make: $('make').value,
+    model: $('model').value,
+    fuel_grade: grade,
+    color: $('color').value,
+    year: $('year').value || null,
+    plate: $('plate').value,
+    vehicle_class: $('class').value,
+  };
+  if ($('is-default').checked) payload.is_default = true;
+
+  try {
+    const res = await fetch(editingId ? `/api/account/vehicles/${editingId}` : '/api/account/vehicles', {
+      method: editingId ? 'PATCH' : 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return err(data.error || 'Could not save this vehicle.');
+
+    // Mid-signup this is step three of four, so it continues to the address
+    // rather than dropping the customer on a list they did not ask to see.
+    location.href = onboarding ? '/app/location.html' : '/app/vehicles.html';
+  } catch {
+    err('Network problem — nothing was saved.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = was;
+  }
+});
+
+$('remove').addEventListener('click', async () => {
+  err(null);
+  const btn = $('remove');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/account/vehicles/${editingId}`, { method: 'DELETE' });
+    const data = await res.json();
+    // A vehicle with a delivery coming cannot be removed, and the API says
+    // which delivery. That is the useful answer, so show it as-is.
+    if (!res.ok) return err(data.error || 'Could not remove this vehicle.');
+    location.href = '/app/vehicles.html';
+  } catch {
+    err('Network problem — nothing was removed.');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* --- load ----------------------------------------------------------------- */
+
+const [meRes, listRes] = await Promise.all([
+  fetch('/api/account/me'),
+  fetch('/api/account/vehicles'),
+]);
+if (!meRes.ok) location.replace('/app/');
+else {
+  const me = await meRes.json();
+  const list = listRes.ok ? await listRes.json() : { vehicles: [], fees: null };
+  fees = list.fees;
+
+  onboarding = !editingId && me.needs.includes('vehicle');
+  $('steps').hidden = !onboarding;
+  $('back').style.display = onboarding ? 'none' : '';
+
+  if (onboarding) {
+    $('title').textContent = 'Add your first vehicle';
+    $('sub').textContent = 'You can add more later. We need the fuel type so we never put the wrong grade in.';
+  }
+
+  // The default checkbox is noise when there is only one vehicle, and a real
+  // choice once there are two.
+  const others = list.vehicles.filter((v) => v.id !== editingId);
+  if (others.length) $('default-row').hidden = false;
+
+  if (editingId) {
+    const v = list.vehicles.find((x) => x.id === editingId);
+    if (!v) { location.replace('/app/vehicles.html'); }
+    else {
+      $('title').textContent = 'Edit vehicle';
+      $('sub').textContent = v.display;
+      $('make').value  = v.make  ?? '';
+      $('model').value = v.model ?? '';
+      $('color').value = v.color ?? '';
+      $('year').value  = v.year  ?? '';
+      $('plate').value = v.plate ?? '';
+      $('class').value = v.vehicle_class;
+      $('save').textContent = 'Save changes';
+      $('remove').hidden = false;
+      if (v.is_default) {
+        // The only default cannot be un-set by unticking a box; it changes by
+        // promoting another vehicle instead.
+        $('default-row').hidden = true;
+      }
+      pickGrade(v.fuel_grade);
+    }
+  }
+  syncClassNote();
+}
+</script>
+</body>
+</html>

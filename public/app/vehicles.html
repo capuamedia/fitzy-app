@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C1626">
+<title>My vehicles · Fitzy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="hdr">
+    <a class="hdr__back" href="/app/home.html" aria-label="Back" style="color:#fff;text-decoration:none">←</a>
+    <img class="hdr__logo" src="/assets/fitzy-badge.svg" alt="Fitzy Mobile Fueling">
+  </header>
+
+  <main class="app__body">
+    <h1 class="page-title">My vehicles</h1>
+    <p class="page-sub" id="sub"></p>
+
+    <div class="rows" id="rows" style="margin-top:16px"></div>
+
+    <a class="btn btn--secondary" href="/app/vehicle.html" style="margin-top:16px">Add a vehicle</a>
+
+    <div class="warn warn--sm" id="fees" hidden style="margin-top:18px"></div>
+  </main>
+
+  <footer class="band"></footer>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+};
+
+const res = await fetch('/api/account/vehicles');
+if (res.status === 401) location.replace('/app/');
+else {
+  const { vehicles, fees } = await res.json();
+  const rows = $('rows');
+
+  if (!vehicles.length) {
+    const empty = el('div', 'empty');
+    empty.append(
+      el('div', 'empty__title', 'No vehicles yet'),
+      el('div', 'empty__body', "Add the car you'd like filled and we'll remember its fuel type.")
+    );
+    rows.append(empty);
+    $('sub').textContent = '';
+  } else {
+    $('sub').textContent = vehicles.length === 1
+      ? 'One vehicle on your account.'
+      : `${vehicles.length} vehicles on your account.`;
+
+    for (const v of vehicles) {
+      const row = el('button', 'rowcard');
+      row.type = 'button';
+
+      const main = el('div', 'rowcard__main');
+      const title = el('div', 'rowcard__title');
+      title.append(el('span', null, v.display || `${v.make} ${v.model}`));
+      if (v.is_default) title.append(el('span', 'chip chip--default', 'Usual'));
+      if (v.vehicle_class === 'motorhome') title.append(el('span', 'chip chip--amber', 'Motorhome'));
+
+      const bits = [v.fuel_label];
+      if (v.plate) bits.push(v.plate);
+      main.append(title, el('div', 'rowcard__sub', bits.join(' · ')));
+
+      row.append(main, el('span', 'rowcard__chevron', '›'));
+      row.addEventListener('click', () => { location.href = `/app/vehicle.html?id=${v.id}`; });
+      rows.append(row);
+    }
+  }
+
+  // The fee rules come from settings, so this copy cannot drift from what
+  // the customer is actually charged.
+  if (fees) {
+    $('fees').hidden = false;
+    $('fees').innerHTML =
+      `We fill up to <strong>${fees.included_per_visit}</strong> vehicles per visit. ` +
+      `Each one beyond that is <strong>${fees.extra_vehicle}</strong>, and a motorhome ` +
+      `is <strong>${fees.motorhome_fee}</strong>.`;
+  }
+}
+</script>
+</body>
+</html>
