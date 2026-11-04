@@ -61,17 +61,28 @@ export async function onRequestPost({ request, env }) {
 
   if (!existing) {
     const smsConsent = body.sms_service_consent === true;
+
+    // Anyone signing up while a dev sign-in path is open is a tester, so
+    // say so in the row and make the pre-launch cleanup a query instead of
+    // someone's memory. Read from the environment only — a client-settable
+    // flag would let a visitor label their own account, which is backwards
+    // for a field that decides what gets deleted. Both variables are absent
+    // on a real deployment, so the safe state is 0 by absence.
+    const isTest = env.DEV_CODE_VIA_ACCESS === '1' || env.ENVIRONMENT === 'development';
+
     await env.DB
       .prepare(
         `INSERT INTO users (id, first_name, last_name, phone, email,
-                            sms_service_consent, sms_marketing_consent, sms_consent_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+                            sms_service_consent, sms_marketing_consent, sms_consent_at,
+                            test_account)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
         newId(), firstName, lastName, phone, email,
         smsConsent ? 1 : 0,
         body.sms_marketing_consent === true ? 1 : 0,
-        smsConsent || body.sms_marketing_consent === true ? new Date().toISOString() : null
+        smsConsent || body.sms_marketing_consent === true ? new Date().toISOString() : null,
+        isTest ? 1 : 0
       )
       .run();
   }
