@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C1626">
+<title>Fitzy Mobile Fueling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+
+<div class="splash">
+  <img class="splash__logo" src="/assets/fitzy-badge.svg" alt="Fitzy Mobile Fueling">
+  <div class="splash__tag">We bring the fuel to you</div>
+
+  <div class="splash__actions">
+    <a class="btn btn--primary" href="/app/signup.html" id="create">Create account</a>
+    <a class="btn btn--secondary" href="/app/signin.html">Sign in</a>
+  </div>
+</div>
+
+<script type="module">
+// Someone already signed in should not be asked to create an account. Send
+// them wherever they actually left off.
+try {
+  const res = await fetch('/api/account/me');
+  if (res.ok) {
+    const me = await res.json();
+    const next = me.needs[0];
+    location.replace(
+      next === 'waiver'   ? '/app/waiver.html'
+      : next === 'vehicle'  ? '/app/vehicle.html'
+      : next === 'location' ? '/app/location.html'
+      : '/app/home.html'
+    );
+  }
+} catch { /* not signed in; the splash is the right screen */ }
+</script>
+</body>
+</html>

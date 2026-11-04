@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C1626">
+<title>Before we fuel · Fitzy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="hdr">
+    <img class="hdr__logo" src="/assets/fitzy-badge.svg" alt="Fitzy Mobile Fueling">
+  </header>
+
+  <div class="steps" style="margin-top:14px">
+    <i class="is-done"></i><i class="is-done"></i><i class="is-done"></i>
+  </div>
+
+  <main class="app__body">
+    <h1 class="page-title">Before we fuel</h1>
+    <p class="page-sub">Please read and accept our customer agreement.</p>
+
+    <div class="doc" style="margin-top:14px">
+      <div class="doc__scroll" id="scroll">
+        <!--
+          PLACEHOLDER TEXT. This is a readable stand-in so the flow can be
+          built and tested; it is NOT the agreement. The real document is
+          Release_of_Liability_and_Customer_Agreement_FMF.pdf, which the
+          client holds and an attorney is reviewing. Replace the sections
+          below with its actual text before launch, and set
+          waiver_current_version in settings to match.
+        -->
+        <h3>1. Services provided</h3>
+        <p>Fitzy delivers fuel into the vehicles you designate, at the location you provide, during a scheduled delivery window.</p>
+
+        <h3>2. Access to your vehicle</h3>
+        <p>You agree that fuel ports will be clearly accessible and unlocked during your delivery window. If we cannot reach a fuel port, we may be unable to complete the delivery.</p>
+
+        <h3>3. Your vehicle and its condition</h3>
+        <p>You confirm the vehicles you register are in a safe condition to receive fuel and are parked somewhere a delivery vehicle can safely reach.</p>
+
+        <h3>4. Where we will and will not park</h3>
+        <p>Our driver will use reasonable judgement about where to position the delivery vehicle and may decline a location that cannot be served safely.</p>
+
+        <h3>5. Fuel type</h3>
+        <p>You are responsible for confirming the correct fuel grade for each vehicle. Please check the grade shown for each vehicle when you book.</p>
+
+        <h3>6. Payment</h3>
+        <p>Delivery fees and tips are charged when you book. Fuel is charged after delivery, based on the gallons actually delivered, at the rate posted for your delivery day.</p>
+
+        <h3>7. Cancellation</h3>
+        <p>You may cancel without charge up to two hours before the start of your delivery window. Cancellations inside that window may be charged a fee.</p>
+
+        <h3>8. Photographs</h3>
+        <p>We photograph the pump meter at each fill as a record of the gallons delivered. These photographs are kept with your invoice.</p>
+
+        <h3>9. Limitation of liability</h3>
+        <p>Placeholder text pending attorney review.</p>
+
+        <h3>10. Governing law</h3>
+        <p>Placeholder text pending attorney review. This agreement is governed by the laws of the State of California.</p>
+
+        <h3>Acknowledgement</h3>
+        <p>By signing below you acknowledge that you have read and agree to this agreement. Signing electronically has the same legal effect as a handwritten signature. A copy will be emailed to you.</p>
+      </div>
+      <div class="doc__meta" id="meta">Version — · Fitzy Mobile Fueling, LLC · Westlake Village, California</div>
+      <div class="doc__more" id="more">Scroll to continue</div>
+    </div>
+
+    <div id="readmark" hidden style="margin-top:12px"><span class="doc__read">✓ Read to the end</span></div>
+
+    <label class="consent" for="agree" id="agree-row" style="margin-top:12px;opacity:.45;pointer-events:none">
+      <span class="checkbox" id="cb-agree" aria-hidden="true"></span>
+      <input type="checkbox" id="agree" style="position:absolute;opacity:0;width:1px;height:1px">
+      <span class="consent__text">I have read and agree to the Release of Liability and Customer Agreement.</span>
+    </label>
+
+    <input class="sign-input" id="sign" placeholder="Type your full name to sign" autocomplete="off" disabled style="margin-top:6px">
+    <p class="help" style="padding:6px 18px 0">
+      Signing electronically has the same legal effect as a handwritten signature.
+    </p>
+
+    <button class="btn btn--primary" id="accept" style="margin-top:14px">Agree &amp; continue</button>
+    <p class="btn-reason" id="reason"></p>
+  </main>
+
+  <footer class="band"></footer>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+let me = null;
+
+/* Scroll-to-read is not decoration. The acceptance record needs to be able
+   to say the text was actually put in front of the person, so the consent
+   box stays inert until the document has been scrolled to the end. */
+const scroll = $('scroll');
+let read = false;
+
+function checkRead() {
+  if (read) return;
+  const atEnd = scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 8;
+  // A document short enough not to scroll counts as read on arrival.
+  if (!atEnd && scroll.scrollHeight > scroll.clientHeight + 8) return;
+  read = true;
+  $('more').hidden = true;
+  $('readmark').hidden = false;
+  const row = $('agree-row');
+  row.style.opacity = '1';
+  row.style.pointerEvents = 'auto';
+}
+scroll.addEventListener('scroll', checkRead, { passive: true });
+
+$('agree').addEventListener('change', () => {
+  $('cb-agree').classList.toggle('is-checked', $('agree').checked);
+  $('sign').disabled = !$('agree').checked;
+  if ($('agree').checked) $('sign').focus();
+});
+
+$('accept').addEventListener('click', async () => {
+  const reason = $('reason');
+  reason.textContent = '';
+
+  // A disabled-looking button that does nothing reads as broken, so it
+  // stays tappable and says what is missing.
+  if (!read)                 { reason.textContent = 'Please read to the end of the agreement first.'; return; }
+  if (!$('agree').checked)   { reason.textContent = 'Tick the box to confirm you agree.'; return; }
+  if ($('sign').value.trim().length < 3) { reason.textContent = 'Type your full name to sign.'; $('sign').focus(); return; }
+
+  const btn = $('accept');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const res = await fetch('/api/account/me', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'accept_waiver', typed_name: $('sign').value }),
+    });
+    const data = await res.json();
+    if (!res.ok) { reason.textContent = data.error || 'Could not save your signature.'; return; }
+    location.href = '/app/welcome.html';
+  } catch {
+    reason.textContent = 'Network problem — your signature was not saved.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Agree & continue';
+  }
+});
+
+const res = await fetch('/api/account/me');
+if (!res.ok) { location.replace('/app/'); }
+else {
+  me = await res.json();
+  $('meta').textContent =
+    `Version ${me.waiver_version} · Fitzy Mobile Fueling, LLC · Westlake Village, California`;
+  $('sign').placeholder = `Type "${me.user.first_name} ${me.user.last_name}" to sign`;
+  // Already signed this version — nothing to do here.
+  if (!me.needs.includes('waiver')) location.replace('/app/welcome.html');
+  checkRead();
+}
+</script>
+</body>
+</html>

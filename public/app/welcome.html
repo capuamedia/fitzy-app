@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C1626">
+<title>You're all set · Fitzy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<div class="app">
+  <header class="hdr">
+    <img class="hdr__logo" src="/assets/fitzy-badge.svg" alt="Fitzy Mobile Fueling">
+  </header>
+
+  <main class="app__body">
+    <div class="done">
+      <div class="done__mark">
+        <svg width="38" height="38" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M5 12.5l4.5 4.5L19 7" stroke="#0C1626" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="done__title" id="title">You're all set</div>
+      <p class="done__body" id="body">Add a vehicle and your first location, and you're ready to book a fill-up.</p>
+    </div>
+
+    <div style="margin-top:26px;display:flex;flex-direction:column;gap:12px">
+      <a class="btn btn--primary" href="/app/vehicle.html" id="primary">Add my first vehicle</a>
+      <a class="btn btn--secondary" href="/app/home.html" id="later">I'll do this later</a>
+    </div>
+  </main>
+
+  <footer class="band"></footer>
+</div>
+
+<script type="module">
+const res = await fetch('/api/account/me');
+if (!res.ok) { location.replace('/app/'); }
+else {
+  const me = await res.json();
+  document.getElementById('title').textContent = `You're all set, ${me.user.first_name}`;
+
+  // Point at whatever is actually still missing, rather than always saying
+  // "add a vehicle" to someone who already has one.
+  const next = me.needs.find((n) => n !== 'waiver');
+  const primary = document.getElementById('primary');
+  if (next === 'vehicle') {
+    primary.textContent = 'Add my first vehicle';
+    primary.href = '/app/vehicle.html';
+  } else if (next === 'location') {
+    primary.textContent = 'Add a delivery location';
+    primary.href = '/app/location.html';
+    document.getElementById('body').textContent =
+      'One more thing — tell us where to find your vehicle.';
+  } else {
+    primary.textContent = 'Schedule a fill-up';
+    primary.href = '/app/book.html';
+    document.getElementById('body').textContent = 'Everything is ready. Book whenever you need fuel.';
+    document.getElementById('later').textContent = 'Go to my account';
+  }
+}
+</script>
+</body>
+</html>

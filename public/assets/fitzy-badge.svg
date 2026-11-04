@@ -1,0 +1,21 @@
+<!--
+  PLACEHOLDER — replace with the real Fitzy badge.
+
+  The actual logo is a gold/amber badge mark that already exists as a
+  transparent PNG and is used on fitzyfuel.com and throughout the Claude
+  Design batches. Drop it in at this path and every screen picks it up;
+  nothing else needs changing.
+
+  This stand-in is deliberately plain so it is obvious it is not the brand
+  mark. It is not an attempt to reproduce the real one.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 120" role="img" aria-label="Fitzy Mobile Fueling">
+  <style>
+    .wm { font: 800 54px 'Barlow Condensed', 'Barlow', sans-serif; letter-spacing: 2px; fill: #E8A020; }
+    .sb { font: 700 13px 'Barlow', sans-serif; letter-spacing: 4.5px; fill: #FFFFFF; }
+    .rule { stroke: #E8A020; stroke-width: 3; }
+  </style>
+  <text class="wm" x="160" y="58" text-anchor="middle">FITZY</text>
+  <line class="rule" x1="74" y1="72" x2="246" y2="72" />
+  <text class="sb" x="160" y="96" text-anchor="middle">MOBILE FUELING</text>
+</svg>

@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C1626">
+<title>Create your account · Fitzy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fitzy.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="hdr">
+    <a class="hdr__back" href="/app/" aria-label="Back" id="back" style="color:#fff;text-decoration:none">←</a>
+    <img class="hdr__logo" src="/assets/fitzy-badge.svg" alt="Fitzy Mobile Fueling">
+  </header>
+
+  <div class="steps" style="margin-top:14px">
+    <i class="is-done" id="s1"></i><i id="s2"></i><i id="s3"></i>
+  </div>
+
+  <main class="app__body">
+
+    <!-- ---------------------------------------------------- step 1: details -->
+    <section id="step-details">
+      <h1 class="page-title">Create your account</h1>
+      <p class="page-sub">We'll text you a code to confirm your number.</p>
+
+      <form class="form" id="details-form" style="margin-top:18px;gap:14px" novalidate>
+        <div class="field">
+          <label class="field-label" for="first">First name</label>
+          <input class="input" id="first" autocomplete="given-name" placeholder="Mike">
+        </div>
+        <div class="field">
+          <label class="field-label" for="last">Last name</label>
+          <input class="input" id="last" autocomplete="family-name" placeholder="Capua">
+        </div>
+        <div class="field">
+          <label class="field-label" for="phone">Mobile number</label>
+          <input class="input" id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(805) 555-1133">
+        </div>
+        <div class="field">
+          <label class="field-label" for="email">Email <span class="help">— optional</span></label>
+          <input class="input" id="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com">
+          <span class="help" style="padding:6px 18px 0">Receipts go here. Without it you'll only get them by text.</span>
+        </div>
+
+        <!-- Two separate consents. Service messages and marketing are
+             different permissions under TCPA, and neither is pre-ticked. -->
+        <label class="consent" for="c-terms">
+          <span class="checkbox" id="cb-terms" aria-hidden="true"></span>
+          <input type="checkbox" id="c-terms" class="visually-hidden" style="position:absolute;opacity:0;width:1px;height:1px">
+          <span class="consent__text">
+            I agree to the <a href="/legal/terms.html" target="_blank" rel="noopener">Terms of Service</a>
+            and <a href="/legal/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.
+          </span>
+        </label>
+
+        <label class="consent" for="c-sms">
+          <span class="checkbox" id="cb-sms" aria-hidden="true"></span>
+          <input type="checkbox" id="c-sms" style="position:absolute;opacity:0;width:1px;height:1px">
+          <span class="consent__text">
+            Text me about my deliveries.
+            <small>Confirmations, when the truck is on the way, and receipts. Message and data rates may apply.</small>
+          </span>
+        </label>
+
+        <label class="consent" for="c-mkt">
+          <span class="checkbox" id="cb-mkt" aria-hidden="true"></span>
+          <input type="checkbox" id="c-mkt" style="position:absolute;opacity:0;width:1px;height:1px">
+          <span class="consent__text">
+            Text me offers and news.
+            <small>Occasional, and separate from your delivery updates. You can turn this off any time.</small>
+          </span>
+        </label>
+
+        <button class="btn btn--primary" type="submit" id="send">Continue</button>
+        <p class="btn-reason" id="details-error" hidden></p>
+      </form>
+    </section>
+
+    <!-- ------------------------------------------------------- step 2: code -->
+    <section id="step-code" hidden>
+      <h1 class="page-title">Enter your code</h1>
+      <p class="page-sub" id="sent-to"></p>
+
+      <form class="form" id="code-form" style="margin-top:18px" novalidate>
+        <input class="code-input" id="code" type="text" inputmode="numeric"
+               autocomplete="one-time-code" maxlength="6" placeholder="------">
+        <button class="btn btn--primary" type="submit" id="verify">Verify</button>
+        <p class="btn-reason" id="code-error" hidden></p>
+        <button class="textlink" type="button" id="resend" style="margin:0 auto">Send a new code</button>
+        <button class="textlink" type="button" id="edit" style="margin:0 auto">Change my number</button>
+      </form>
+      <div class="pending" id="dev" hidden style="margin-top:14px"></div>
+    </section>
+
+  </main>
+  <footer class="band"></footer>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+let phone = '';
+
+/* Checkboxes are styled spans driven by a real hidden input, so the control
+   stays a checkbox for the keyboard and for screen readers. */
+const boxes = [['c-terms','cb-terms'], ['c-sms','cb-sms'], ['c-mkt','cb-mkt']];
+for (const [input, box] of boxes) {
+  $(input).addEventListener('change', () => $(box).classList.toggle('is-checked', $(input).checked));
+}
+
+$('phone').addEventListener('input', (e) => {
+  const d = e.target.value.replace(/\D/g, '').slice(0, 10);
+  e.target.value = d.length > 6 ? `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`
+    : d.length > 3 ? `(${d.slice(0,3)}) ${d.slice(3)}`
+    : d.length ? `(${d}` : '';
+});
+
+$('code').addEventListener('input', (e) => {
+  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+  if (e.target.value.length === 6) $('code-form').requestSubmit();
+});
+
+const err = (id, msg) => {
+  const e = $(id);
+  if (!msg) { e.hidden = true; return; }
+  e.textContent = msg;
+  e.hidden = false;
+};
+
+const showStep = (which) => {
+  $('step-details').hidden = which !== 'details';
+  $('step-code').hidden = which !== 'code';
+  $('s2').classList.toggle('is-done', which === 'code');
+  if (which === 'code') $('code').focus();
+};
+
+async function submitDetails(btn) {
+  err('details-error', null);
+  const digits = $('phone').value.replace(/\D/g, '');
+  if (!$('first').value.trim()) return err('details-error', 'Enter your first name.');
+  if (!$('last').value.trim())  return err('details-error', 'Enter your last name.');
+  if (digits.length < 10)       return err('details-error', 'Enter a ten-digit mobile number.');
+  if (!$('c-terms').checked)    return err('details-error', 'Please accept the Terms and Privacy Policy to continue.');
+
+  phone = digits;
+  btn.disabled = true;
+  const was = btn.textContent;
+  btn.textContent = 'Sending…';
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        first_name: $('first').value,
+        last_name: $('last').value,
+        phone,
+        email: $('email').value,
+        accepted_terms: $('c-terms').checked,
+        sms_service_consent: $('c-sms').checked,
+        sms_marketing_consent: $('c-mkt').checked,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) return err('details-error', data.error || 'Could not send a code.');
+
+    $('sent-to').textContent = `Sent to ${data.sent_to}. It expires in ${data.expires_in_minutes} minutes.`;
+    if (data.dev_code) {
+      $('dev').hidden = false;
+      $('dev').textContent = `Development: your code is ${data.dev_code}`;
+    }
+    showStep('code');
+  } catch {
+    err('details-error', 'Network problem. Try again.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = was;
+  }
+}
+
+$('details-form').addEventListener('submit', (e) => { e.preventDefault(); submitDetails($('send')); });
+$('resend').addEventListener('click', () => submitDetails($('resend')));
+$('edit').addEventListener('click', () => { $('code').value = ''; $('dev').hidden = true; err('code-error', null); showStep('details'); });
+
+$('code-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const code = $('code').value.trim();
+  if (code.length !== 6) return err('code-error', 'Enter all six digits.');
+
+  const btn = $('verify');
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  err('code-error', null);
+  try {
+    const res = await fetch('/api/auth/verify-code', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ phone, code }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      err('code-error', data.error || 'That code did not work.');
+      $('code').value = '';
+      $('code').focus();
+      return;
+    }
+    location.href = '/app/waiver.html';
+  } catch {
+    err('code-error', 'Network problem. Try again.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Verify';
+  }
+});
+
+showStep('details');
+$('first').focus();
+</script>
+</body>
+</html>
